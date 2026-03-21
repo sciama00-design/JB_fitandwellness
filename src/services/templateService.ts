@@ -1,0 +1,101 @@
+import { supabase } from '../lib/supabase';
+import type { WorkoutPlanTemplate, PlanTemplateExercise } from '../types/database';
+
+export const templateService = {
+  async getCoachTemplates(coachId: string) {
+    const { data, error } = await supabase
+      .from('workout_plan_templates')
+      .select('*')
+      .eq('coach_id', coachId)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data as WorkoutPlanTemplate[];
+  },
+
+  async getTemplateWithExercises(templateId: string) {
+    const { data: template, error: templateError } = await supabase
+      .from('workout_plan_templates')
+      .select('*')
+      .eq('id', templateId)
+      .single();
+
+    if (templateError) throw templateError;
+
+    const { data: exercises, error: exercisesError } = await supabase
+      .from('plan_template_exercises')
+      .select('*')
+      .eq('template_id', templateId)
+      .order('order_index');
+
+    if (exercisesError) throw exercisesError;
+
+    return { ...template, exercises: exercises as PlanTemplateExercise[] };
+  },
+
+  async createTemplate(template: Partial<WorkoutPlanTemplate>, exercises: Partial<PlanTemplateExercise>[]) {
+    // 1. Insert Template
+    const { data: newTemplate, error: templateError } = await supabase
+      .from('workout_plan_templates')
+      .insert([template])
+      .select()
+      .single();
+
+    if (templateError) throw templateError;
+
+    // 2. Insert Exercises
+    const exercisesWithTemplateId = exercises.map((ex, index) => ({
+      ...ex,
+      template_id: newTemplate.id,
+      order_index: index,
+    }));
+
+    const { error: exercisesError } = await supabase
+      .from('plan_template_exercises')
+      .insert(exercisesWithTemplateId);
+
+    if (exercisesError) throw exercisesError;
+
+    return newTemplate;
+  },
+
+  async updateTemplate(templateId: string, template: Partial<WorkoutPlanTemplate>, exercises: Partial<PlanTemplateExercise>[]) {
+    // 1. Update Template
+    const { error: templateError } = await supabase
+      .from('workout_plan_templates')
+      .update({ ...template, updated_at: new Date().toISOString() })
+      .eq('id', templateId);
+
+    if (templateError) throw templateError;
+
+    // 2. Delete old exercises
+    const { error: deleteError } = await supabase
+      .from('plan_template_exercises')
+      .delete()
+      .eq('template_id', templateId);
+
+    if (deleteError) throw deleteError;
+
+    // 3. Insert new exercises
+    const exercisesWithTemplateId = exercises.map((ex, index) => ({
+      ...ex,
+      template_id: templateId,
+      order_index: index,
+    }));
+
+    const { error: exercisesError } = await supabase
+      .from('plan_template_exercises')
+      .insert(exercisesWithTemplateId);
+
+    if (exercisesError) throw exercisesError;
+  },
+
+  async deleteTemplate(templateId: string) {
+    const { error } = await supabase
+      .from('workout_plan_templates')
+      .delete()
+      .eq('id', templateId);
+    
+    if (error) throw error;
+  }
+};
