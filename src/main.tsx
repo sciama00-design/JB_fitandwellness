@@ -4,6 +4,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './lib/auth'
 import './index.css'
 import App from './App.tsx'
+import { registerSW } from 'virtual:pwa-register'
+
+// Register service worker
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if (confirm('New content available. Reload?')) {
+      updateSW(true)
+    }
+  },
+  onOfflineReady() {
+    console.log('App ready to work offline')
+  },
+})
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -10,7 +10,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'favicon.svg'],
       manifest: {
         name: 'JB Fit & Wellness',
         short_name: 'JB Fit',
