@@ -6,13 +6,9 @@ import './index.css'
 import App from './App.tsx'
 import { registerSW } from 'virtual:pwa-register'
 
-// Register service worker
-const updateSW = registerSW({
-  onNeedRefresh() {
-    if (confirm('New content available. Reload?')) {
-      updateSW(true)
-    }
-  },
+// Register service worker with autoUpdate behavior
+registerSW({
+  immediate: true,
   onOfflineReady() {
     console.log('App ready to work offline')
   },
