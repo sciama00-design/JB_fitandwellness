@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Trash2, Save, GripVertical, 
   Link as LinkIcon, Unlink, Loader2, ChevronRight,
@@ -43,6 +44,35 @@ export default function WorkoutPlanEditor({
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [selectedExerciseInfo, setSelectedExerciseInfo] = useState<ExerciseLibrary | null>(null);
   const [activeMediaViewerIndex, setActiveMediaViewerIndex] = useState<number | null>(null);
+  
+  // Group-first flow states
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [isNamingGroup, setIsNamingGroup] = useState(false);
+  const [tempGroupName, setTempGroupName] = useState('');
+  const [pendingGroupName, setPendingGroupName] = useState('');
+  
+  // Derived groups from exercises
+  const groups = useMemo(() => {
+    const g: { id: string; name: string; exerciseCount: number }[] = [];
+    const seen = new Set<string>();
+    
+    exercises.forEach(ex => {
+      if (ex.group_id && !seen.has(ex.group_id)) {
+        seen.add(ex.group_id);
+        g.push({
+          id: ex.group_id,
+          name: ex.group_name || 'Senza nome',
+          exerciseCount: exercises.filter(e => e.group_id === ex.group_id).length
+        });
+      }
+    });
+    return g;
+  }, [exercises]);
+
+  const activeGroupName = useMemo(() => {
+    const existing = groups.find(g => g.id === activeGroupId);
+    return existing ? existing.name : pendingGroupName;
+  }, [groups, activeGroupId, pendingGroupName]);
 
   const { data: allLibraryExercises } = useQuery({
     queryKey: ['exercises'],
@@ -70,9 +100,26 @@ export default function WorkoutPlanEditor({
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
+    
     const items = Array.from(exercises);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
+    
+    if (activeGroupId) {
+      // Reordering within a group
+      const filteredIndices = items
+        .map((ex, idx) => ({ ex, idx }))
+        .filter(item => item.ex.group_id === activeGroupId)
+        .map(item => item.idx);
+        
+      const sourceIdx = filteredIndices[result.source.index];
+      const destIdx = filteredIndices[result.destination.index];
+      
+      const [reorderedItem] = items.splice(sourceIdx, 1);
+      items.splice(destIdx, 0, reorderedItem);
+    } else {
+      // Global reorder (if allowed/used)
+      const [reorderedItem] = items.splice(result.source.index, 1);
+      items.splice(result.destination.index, 0, reorderedItem);
+    }
     
     // Update order_index for all
     const updated = items.map((ex, idx) => ({ ...ex, order_index: idx }));
@@ -82,7 +129,7 @@ export default function WorkoutPlanEditor({
   const addExercise = (libEx: ExerciseLibrary) => {
     const newEx: Partial<PlanExercise> = {
       exercise_library_id: libEx.id,
-      name: libEx.name,
+      name: libEx.name_it || libEx.name,
       target_sets: 3,
       target_reps: 10,
       rest_seconds: 60,
@@ -90,13 +137,37 @@ export default function WorkoutPlanEditor({
       order_index: exercises.length,
       video_url: libEx.video_url,
       image_url: libEx.images?.[0] || null,
-      group_id: null,
-      group_name: null,
+      group_id: activeGroupId,
+      group_name: activeGroupName,
       superset_id: null,
       target_reps_detail: Array(3).fill(10),
     };
     setExercises([...exercises, newEx]);
     setIsSelectModalOpen(false);
+  };
+
+  const handleCreateGroup = (name: string) => {
+    const groupId = crypto.randomUUID();
+    // To ensure the group exists even if empty, we could either:
+    // 1. Add a temporary exercise (bad)
+    // 2. Just set activeGroupId and let the user add exercises.
+    // The 'groups' memo only shows groups with at least one exercise.
+    // Let's modify 'groups' memo to include the activeGroupId if it's empty.
+    setActiveGroupId(groupId);
+    // Setting activeGroupId before creating exercises is fine.
+    // The activeGroupName will need to know the name even if no exercises exist.
+    // I'll add a 'pendingGroupName' state.
+    setPendingGroupName(name);
+    setIsNamingGroup(false);
+    setTempGroupName('');
+  };
+
+  const deleteGroup = (groupId: string) => {
+    setExercises(exercises.filter(ex => ex.group_id !== groupId));
+    if (activeGroupId === groupId) {
+      setActiveGroupId(null);
+      setPendingGroupName('');
+    }
   };
 
   const removeExercise = (index: number) => {
@@ -168,7 +239,7 @@ export default function WorkoutPlanEditor({
   );
 
   const cardClasses = cn(
-    "bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden",
+    "bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl relative overflow-hidden",
     isEdit ? "hover:border-amber-500/20" : "hover:border-violet-500/20",
     "transition-all duration-300"
   );
@@ -199,7 +270,7 @@ export default function WorkoutPlanEditor({
             )}>
               {isTemplate ? <ClipboardList className="w-6 h-6" /> : (isEdit ? <Pencil className="w-6 h-6" /> : <Plus className="w-6 h-6" />)}
             </div>
-            <h1 className="text-3xl font-black text-slate-50 tracking-tight">
+            <h1 className="text-xl sm:text-3xl font-black text-slate-50 tracking-tight">
               {isTemplate ? (isEdit ? 'Modifica Modello' : 'Nuovo Modello') : (isEdit ? 'Modifica Scheda' : 'Nuova Scheda')}
             </h1>
           </div>
@@ -286,84 +357,223 @@ export default function WorkoutPlanEditor({
           </div>
         </div>
 
-        {/* Right Column: Exercises & Drag and Drop */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between px-2">
-            <h2 className="text-xl font-black text-slate-100 flex items-center gap-3">
-              Esercizi 
-              <span className={cn(
-                "px-2.5 py-0.5 rounded-full text-xs font-bold",
-                isEdit ? "bg-amber-500/20 text-amber-400" : "bg-violet-500/20 text-violet-400"
-              )}>
-                {exercises.length}
-              </span>
-            </h2>
-            <button 
-              onClick={() => setIsSelectModalOpen(true)}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                isEdit ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20" : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20"
-              )}
-            >
-              <Plus className="w-4 h-4" /> Aggiungi Esercizio
-            </button>
-          </div>
-
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="exercises-list">
-              {(provided) => (
-                <div 
-                  {...provided.droppableProps} 
-                  ref={provided.innerRef}
-                  className="space-y-4"
-                >
-                  {exercises.map((ex, index) => (
-                    <Draggable key={`${ex.exercise_library_id}-${index}`} draggableId={`ex-${index}`} index={index}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          className={cn(
-                            "transition-all duration-200",
-                            snapshot.isDragging ? "z-50 scale-[1.02] shadow-2xl" : ""
-                          )}
-                        >
-                          <ExerciseItem 
-                            ex={ex} 
-                            index={index} 
-                            themeColor={themeColor}
-                            dragHandleProps={provided.dragHandleProps}
-                            onRemove={() => removeExercise(index)}
-                            onUpdate={(updates) => updateExercise(index, updates)}
-                            onToggleSuperset={() => toggleSuperset(index)}
-                            onGroupAssign={(name) => assignGroup(index, name)}
-                            onShowInfo={() => handleShowInfo(ex.exercise_library_id || null)}
-                            onOpenMediaViewer={() => setActiveMediaViewerIndex(index)}
-                            isSuperset={!!(ex.superset_id && exercises[index-1]?.superset_id === ex.superset_id)}
-                            prevExercise={exercises[index-1]}
-                          />
-                        </div>
+        {/* Right Column: Groups & Exercises with Transitions */}
+        <div className="lg:col-span-2 space-y-6 min-h-[400px]">
+          <AnimatePresence mode="wait">
+            {!activeGroupId ? (
+              <motion.div
+                key="groups-view"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="space-y-6"
+              >
+                <div className="flex items-center justify-between px-2">
+                  <h2 className="text-xl font-black text-slate-100 flex items-center gap-3">
+                    Gruppi 
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-800 text-slate-400">
+                      {groups.length}
+                    </span>
+                  </h2>
+                  {!isNamingGroup && (
+                    <button 
+                      onClick={() => setIsNamingGroup(true)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all bg-primary-500/10 text-primary-400 hover:bg-primary-500/20"
                       )}
-                    </Draggable>
+                    >
+                      <Plus className="w-4 h-4" /> Crea Gruppo
+                    </button>
+                  )}
+                </div>
+
+                {isNamingGroup && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-slate-900/60 border border-primary-500/30 rounded-3xl p-6 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">Nuovo Gruppo</h4>
+                      <button onClick={() => setIsNamingGroup(false)} className="text-slate-500 hover:text-slate-300"><X className="w-4 h-4" /></button>
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        autoFocus
+                        type="text"
+                        className={inputClasses}
+                        placeholder="Nome del gruppo..."
+                        value={tempGroupName}
+                        onChange={(e) => setTempGroupName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && tempGroupName && handleCreateGroup(tempGroupName)}
+                      />
+                      <button 
+                        onClick={() => tempGroupName && handleCreateGroup(tempGroupName)}
+                        className="px-6 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-bold transition-all"
+                      >
+                        Crea
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {['Riscaldamento', 'Parte A', 'Parte B', 'Core', 'Defaticamento'].map(name => (
+                        <button 
+                          key={name}
+                          onClick={() => handleCreateGroup(name)}
+                          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-400 rounded-lg border border-slate-700 transition-all"
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {groups.map((group) => (
+                    <button
+                      key={group.id}
+                      onClick={() => setActiveGroupId(group.id)}
+                      className="flex items-center justify-between p-6 bg-slate-900/40 border border-slate-800/80 hover:border-primary-500/50 hover:bg-slate-800/40 rounded-3xl transition-all group text-left"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-primary-500/10 flex items-center justify-center text-primary-400 group-hover:scale-110 transition-transform">
+                          <Flame className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-100 block text-lg group-hover:text-primary-300 transition-colors">{group.name}</span>
+                          <span className="text-xs text-slate-500 font-medium">{group.exerciseCount} esercizi</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div 
+                          onClick={(e) => { e.stopPropagation(); deleteGroup(group.id); }}
+                          className="p-2 text-slate-600 hover:text-red-400 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-slate-600 group-hover:translate-x-1 transition-all" />
+                      </div>
+                    </button>
                   ))}
-                  {provided.placeholder}
-                  
-                  {exercises.length === 0 && (
-                    <div className="text-center py-20 bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-800 flex flex-col items-center gap-4">
+
+                  {groups.length === 0 && !isNamingGroup && (
+                    <div className="md:col-span-2 text-center py-20 bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-800 flex flex-col items-center gap-4">
                       <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-600">
                         <LayoutGrid className="w-8 h-8" />
                       </div>
                       <div>
-                        <p className="text-slate-400 font-bold">Nessun esercizio aggiunto</p>
-                        <p className="text-slate-500 text-sm">Clicca su "Aggiungi Esercizio" per iniziare.</p>
+                        <p className="text-slate-400 font-bold">Nessun gruppo creato</p>
+                        <p className="text-slate-500 text-sm">Inizia creando il primo gruppo di esercizi.</p>
                       </div>
+                      <button 
+                        onClick={() => setIsNamingGroup(true)}
+                        className="mt-2 px-6 py-2 bg-primary-600/10 text-primary-400 border border-primary-500/20 rounded-xl font-bold hover:bg-primary-600/20 transition-all"
+                      >
+                        Crea Gruppo
+                      </button>
                     </div>
                   )}
                 </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="exercises-view"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => setActiveGroupId(null)}
+                      className="p-2 bg-slate-800 text-slate-400 hover:text-slate-100 rounded-xl transition-all"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                    <h2 className="text-xl font-black text-slate-100 flex items-center gap-3">
+                      {activeGroupName}
+                      <span className={cn(
+                        "px-2.5 py-0.5 rounded-full text-xs font-bold",
+                        isEdit ? "bg-amber-500/20 text-amber-400" : "bg-violet-500/20 text-violet-400"
+                      )}>
+                        {exercises.filter(ex => ex.group_id === activeGroupId).length}
+                      </span>
+                    </h2>
+                  </div>
+                  <button 
+                    onClick={() => setIsSelectModalOpen(true)}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
+                      isEdit ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20" : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20"
+                    )}
+                  >
+                    <Plus className="w-4 h-4" /> Aggiungi Esercizio
+                  </button>
+                </div>
+
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <Droppable droppableId="exercises-list">
+                    {(provided) => (
+                      <div 
+                        {...provided.droppableProps} 
+                        ref={provided.innerRef}
+                        className="space-y-4"
+                      >
+                        {exercises
+                          .map((ex, originalIndex) => ({ ex, originalIndex }))
+                          .filter(({ ex }) => ex.group_id === activeGroupId)
+                          .map(({ ex, originalIndex }, filteredIndex) => (
+                          <Draggable key={`${ex.exercise_library_id}-${originalIndex}`} draggableId={`ex-${originalIndex}`} index={originalIndex}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={cn(
+                                  "transition-all duration-200",
+                                  snapshot.isDragging ? "z-50 scale-[1.02] shadow-2xl" : ""
+                                )}
+                              >
+                                <ExerciseItem 
+                                  ex={ex} 
+                                  index={filteredIndex} 
+                                  themeColor={themeColor}
+                                  dragHandleProps={provided.dragHandleProps}
+                                  onRemove={() => removeExercise(originalIndex)}
+                                  onUpdate={(updates) => updateExercise(originalIndex, updates)}
+                                  onToggleSuperset={() => toggleSuperset(originalIndex)}
+                                  onGroupAssign={(name) => assignGroup(originalIndex, name)}
+                                  onShowInfo={() => handleShowInfo(ex.exercise_library_id || null)}
+                                  onOpenMediaViewer={() => setActiveMediaViewerIndex(originalIndex)}
+                                  isSuperset={!!(ex.superset_id && exercises[originalIndex-1]?.superset_id === ex.superset_id)}
+                                  prevExercise={exercises[originalIndex-1]}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                        
+                        {exercises.filter(ex => ex.group_id === activeGroupId).length === 0 && (
+                          <div className="text-center py-20 bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-800 flex flex-col items-center gap-4">
+                            <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-600">
+                              <Plus className="w-8 h-8" />
+                            </div>
+                            <div>
+                              <p className="text-slate-400 font-bold">Nessun esercizio in questo gruppo</p>
+                              <p className="text-slate-500 text-sm">Clicca su "Aggiungi Esercizio" per iniziare.</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
       </div>
 
       <Modal 
@@ -448,8 +658,8 @@ function ExerciseItem({
       )}
 
       <div className={cn(
-        "bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl p-4 transition-all duration-300",
-        isSuperset ? "ml-6 border-l-4" : "",
+        "bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl p-3 sm:p-4 transition-all duration-300",
+        isSuperset ? "ml-4 sm:ml-6 border-l-4" : "",
         isSuperset && (themeColor === 'amber' ? "border-l-amber-500" : "border-l-violet-500"),
         "hover:border-slate-700"
       )}>
@@ -457,9 +667,9 @@ function ExerciseItem({
           {/* Drag Handle & Index */}
           <div className="flex flex-col items-center gap-1 mt-1">
             <div {...dragHandleProps} className="p-1 cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400 transition-colors">
-              <GripVertical className="w-5 h-5" />
+              <GripVertical className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="text-[10px] font-black text-slate-700 uppercase">{index + 1}</span>
+            <span className="text-[8px] sm:text-[10px] font-black text-slate-700 uppercase">{index + 1}</span>
           </div>
 
           <div className="flex-1 space-y-4">
@@ -556,7 +766,7 @@ function ExerciseItem({
                           <div key={i} className="flex flex-col items-center gap-1 group/set">
                             <input 
                               type="number"
-                              className={cn(inputClasses, "w-14 text-center px-1 font-bold")}
+                              className={cn(inputClasses, "w-10 sm:w-14 text-center px-1 font-bold text-xs sm:text-sm")}
                               value={ex.target_reps_detail?.[i] ?? ex.target_reps}
                               onChange={(e) => {
                                 const newDetail = [...(ex.target_reps_detail || Array(ex.target_sets).fill(ex.target_reps))];
@@ -710,6 +920,23 @@ function ExerciseSelector({ onSelect, onInfo }: { onSelect: (ex: ExerciseLibrary
     queryFn: exerciseService.getAllExercises,
   });
 
+  const [visibleCount, setVisibleCount] = useState(20);
+
+  // Reset visible count when filtered results change
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [filtered]);
+
+  const visibleExercises = useMemo(() => {
+    return filtered.slice(0, visibleCount);
+  }, [filtered, visibleCount]);
+
+  const hasMore = visibleCount < filtered.length;
+
+  const loadMore = () => {
+    setVisibleCount(prev => Math.min(prev + 20, filtered.length));
+  };
+
   return (
     <div className="space-y-6 max-h-[70vh] flex flex-col">
       <div className="relative z-10 shrink-0">
@@ -731,7 +958,8 @@ function ExerciseSelector({ onSelect, onInfo }: { onSelect: (ex: ExerciseLibrary
               <p className="text-slate-600 text-xs mt-1">Prova a cambiare i filtri di ricerca.</p>
             </div>
           ) : (
-            filtered.map(ex => (
+          <div className="space-y-3">
+            {visibleExercises.map(ex => (
               <button 
                 key={ex.id}
                 onClick={() => onSelect(ex)}
@@ -764,7 +992,17 @@ function ExerciseSelector({ onSelect, onInfo }: { onSelect: (ex: ExerciseLibrary
                   </div>
                 </div>
               </button>
-            ))
+            ))}
+
+            {hasMore && (
+              <button
+                onClick={loadMore}
+                className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-primary-400 transition-colors border border-dashed border-slate-800 rounded-2xl hover:border-primary-500/30 bg-slate-900/20"
+              >
+                Carica Altri ({filtered.length - visibleCount} rimanenti)
+              </button>
+            )}
+          </div>
           )}
         </div>
       )}

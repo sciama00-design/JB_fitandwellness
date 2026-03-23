@@ -25,10 +25,10 @@ export const exerciseService = {
     const { data, error } = await supabase
       .from('exercise_library')
       .insert([exercise])
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data as ExerciseLibrary;
+    if (!data || data.length === 0) throw new Error('Errore durante la creazione: nessuna riga inserita');
+    return data[0] as ExerciseLibrary;
   },
 
   async updateExercise(id: string, exercise: Partial<ExerciseLibrary>) {
@@ -36,10 +36,10 @@ export const exerciseService = {
       .from('exercise_library')
       .update(exercise)
       .eq('id', id)
-      .select()
-      .single();
+      .select();
     if (error) throw error;
-    return data as ExerciseLibrary;
+    if (!data || data.length === 0) throw new Error('Errore durante l\'aggiornamento: permesso negato o risorsa non trovata');
+    return data[0] as ExerciseLibrary;
   },
 
   async deleteExercise(id: string) {

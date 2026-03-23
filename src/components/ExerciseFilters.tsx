@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, X, ChevronDown, Dumbbell, Zap, Target, History, Globe, User } from 'lucide-react';
 import type { ExerciseLibrary } from '../types/database';
 import { cn } from '../lib/utils';
+import { translateExerciseTerm } from '../lib/translations';
 
 export interface ExerciseFilters {
   searchTerm: string;
@@ -45,7 +46,9 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
     return exercises.filter(exercise => {
       const matchesSearch = !filters.searchTerm || 
         exercise.name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
-        exercise.description?.toLowerCase().includes(filters.searchTerm.toLowerCase());
+        exercise.name_it?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+        exercise.description?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+        exercise.description_it?.toLowerCase().includes(filters.searchTerm.toLowerCase());
       
       const matchesMuscle = filters.muscleGroups.length === 0 || 
         (exercise.muscle_group && filters.muscleGroups.includes(exercise.muscle_group));
@@ -100,6 +103,22 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
     filters.mechanics.length + 
     (filters.source !== 'all' ? 1 : 0);
 
+  const [localSearchTerm, setLocalSearchTerm] = useState(filters.searchTerm);
+
+  // Sync local search term with filters.searchTerm (for reset)
+  useEffect(() => {
+    setLocalSearchTerm(filters.searchTerm);
+  }, [filters.searchTerm]);
+
+  // Debounce search term
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setFilters(prev => ({ ...prev, searchTerm: localSearchTerm }));
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [localSearchTerm]);
+
   return (
     <div className="space-y-4">
       {/* Search Header */}
@@ -115,8 +134,8 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
               "block w-full pl-11 pr-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-300",
               compact ? "py-2 text-sm" : "py-3"
             )}
-            value={filters.searchTerm}
-            onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
+            value={localSearchTerm}
+            onChange={(e) => setLocalSearchTerm(e.target.value)}
           />
         </div>
         
@@ -219,7 +238,7 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
                         : "bg-slate-900 text-slate-500 border border-transparent hover:border-slate-700"
                     )}
                   >
-                    {group}
+                    {translateExerciseTerm('muscle_groups', group)}
                   </button>
                 ))}
               </div>
@@ -243,7 +262,7 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
                         : "bg-slate-900 text-slate-500 border border-transparent hover:border-slate-700"
                     )}
                   >
-                    {item}
+                    {translateExerciseTerm('equipment', item)}
                   </button>
                 ))}
               </div>
@@ -267,7 +286,7 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
                         : "bg-slate-900 text-slate-500 border border-transparent hover:border-slate-700"
                     )}
                   >
-                    {level}
+                    {translateExerciseTerm('difficulty_level', level)}
                   </button>
                 ))}
               </div>
@@ -291,7 +310,7 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
                         : "bg-slate-900 text-slate-500 border border-transparent hover:border-slate-700"
                     )}
                   >
-                    {m}
+                    {translateExerciseTerm('mechanic', m)}
                   </button>
                 ))}
               </div>

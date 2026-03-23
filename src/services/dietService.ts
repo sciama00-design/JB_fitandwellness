@@ -115,6 +115,74 @@ export function calculateDietPortion(baseQuantity: number, targetKcal: number): 
   const ratio = targetKcal / 1911;
   const adaptedQuantity = baseQuantity * ratio;
   
-  // Round to nearest multiple of 5 grams
+// Round to nearest multiple of 5 grams
   return Math.round(adaptedQuantity / 5) * 5;
 }
+
+import { supabase } from '../lib/supabase';
+import type { DietPlan, AIMealPlan } from '../types/database';
+
+export const dietService = {
+  async getAthleteDietPlan(athleteId: string) {
+    const { data, error } = await supabase
+      .from('diet_plans')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as DietPlan | null;
+  },
+
+  async getTodayAIMealPlan(athleteId: string) {
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('ai_meal_plans')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('date', today)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data as AIMealPlan | null;
+  },
+
+  async saveAIMealPlan(plan: Partial<AIMealPlan>) {
+    const { data, error } = await supabase
+      .from('ai_meal_plans')
+      .upsert({
+        athlete_id: plan.athlete_id,
+        coach_id: plan.coach_id,
+        date: plan.date,
+        meals: plan.meals,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'athlete_id, date' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as AIMealPlan;
+  },
+
+  async saveDietPlan(plan: Partial<DietPlan>) {
+    const { data, error } = await supabase
+      .from('diet_plans')
+      .upsert({
+        athlete_id: plan.athlete_id,
+        coach_id: plan.coach_id,
+        target_kcal: plan.target_kcal,
+        target_protein: plan.target_protein,
+        target_carbs: plan.target_carbs,
+        target_fats: plan.target_fats,
+        ai_guidelines: plan.ai_guidelines,
+        template_id: plan.template_id,
+        selections: plan.selections,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'athlete_id' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as DietPlan;
+  }
+};

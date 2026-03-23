@@ -1,151 +1,177 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #f0fdfa;
-  --color-primary-100: #ccfbf1;
-  --color-primary-200: #99f6e4;
-  --color-primary-300: #5eead4;
-  --color-primary-400: #2dd4bf;
-  --color-primary-500: #14b8a6;
-  --color-primary-600: #0d9488;
-  --color-primary-700: #0f766e;
-  --color-primary-800: #115e59;
-  --color-primary-900: #134e4a;
-  --color-primary-950: #042f2e;
+  --color-brand-primary: #06b6d4;
+  --color-brand-secondary: #0891b2;
+  --color-brand-vibrant: #22d3ee;
+  --color-brand-indigo: #6366f1;
+  --color-brand-gradient-start: #06b6d4;
+  --color-brand-gradient-end: #6366f1;
 
-  --color-slate-50: #f8fafc;
-  --color-slate-100: #f1f5f9;
-  --color-slate-200: #e2e8f0;
-  --color-slate-300: #cbd5e1;
-  --color-slate-400: #94a3b8;
-  --color-slate-500: #64748b;
-  --color-slate-600: #475569;
-  --color-slate-700: #334155;
-  --color-slate-800: #1e293b;
-  --color-slate-900: #0f172a;
-  --color-slate-950: #020617;
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-xxl: 2.5rem;
+  --radius-xl: 1.5rem;
+  --radius-lg: 1rem;
+  --radius-md: 0.75rem;
+  --radius-sm: 0.5rem;
+
+  /* Responsive variables */
+  --card-padding: 2rem;
+  --card-radius: var(--radius-xxl);
 }
 
 @layer base {
   :root {
-    --background: #020617;
-    --foreground: #f8fafc;
-    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --background: 240 10% 3.9%; /* Zinc 950 / Midnight */
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 4.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 188 86% 43%; /* Cyan 500 */
+    --primary-foreground: 188 100% 98%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 10%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 250 89% 65%; /* Indigo 500 */
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 188 86% 43%;
+
+    /* Mobile defaults */
+    --card-padding: 1.5rem;
+    --card-radius: 1.5rem;
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --card-padding: 2rem;
+      --card-radius: 2.5rem;
+    }
   }
 
   body {
-    background: var(--background);
+    @apply bg-[hsl(var(--background))] text-[hsl(var(--foreground))] transition-colors duration-300;
     background-image: 
       radial-gradient(circle at 15% 50%, rgba(20, 184, 166, 0.05) 0%, transparent 50%),
       radial-gradient(circle at 85% 30%, rgba(13, 148, 136, 0.04) 0%, transparent 50%);
     background-attachment: fixed;
-    color: var(--foreground);
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
     overflow-x: hidden;
-    scroll-behavior: smooth;
-  }
-
-  /* Custom Scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #1e293b;
-    border-radius: 20px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #334155;
   }
 }
 
 @layer components {
-  /* Ultra-premium glassmorphism */
   .glass {
-    @apply bg-slate-900/60 backdrop-blur-xl border border-white/5 shadow-2xl;
+    @apply bg-card/60 backdrop-blur-3xl border border-white/10 shadow-2xl;
   }
 
-  .glass-panel {
-    @apply bg-slate-900/40 backdrop-blur-md border border-white/10 shadow-xl;
+  .glass-card {
+    @apply bg-card/40 backdrop-blur-2xl border border-white/5 shadow-2xl hover:border-primary/30 hover:bg-card/50 transition-all duration-500;
+    padding: var(--card-padding);
+    border-radius: var(--card-radius);
   }
 
-  .card {
-    @apply bg-slate-900/50 backdrop-blur-2xl border border-white/10 rounded-2xl p-4 shadow-xl transition-all duration-300 hover:border-primary-500/20 hover:shadow-primary-500/5 hover:-translate-y-0.5;
+  .glass-header {
+    @apply bg-background/70 backdrop-blur-2xl border-b border-white/5 fixed top-0 left-0 right-0 z-50;
   }
-  
-  /* Buttons */
+
+  .premium-gradient-bg {
+    @apply bg-gradient-to-br from-background via-background to-primary/10;
+  }
+
+  .pill-nav-item {
+    @apply relative px-4 py-2 rounded-full transition-all duration-300 text-sm font-medium;
+  }
+
   .btn {
-    @apply inline-flex items-center justify-center px-3 py-2 rounded-xl text-sm font-bold transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer;
+    @apply inline-flex items-center justify-center px-5 py-3 rounded-2xl text-sm font-bold transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer;
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white shadow-md shadow-primary-500/20 hover:shadow-primary-500/30 border border-primary-400/20;
+    @apply bg-primary text-primary-foreground shadow-2xl shadow-primary/30 hover:bg-primary/90 border border-white/10 hover:shadow-primary/40 hover:-translate-y-0.5;
   }
 
   .btn-secondary {
-    @apply bg-slate-800/80 hover:bg-slate-700/80 text-white border border-white/10 hover:border-white/20 shadow-md backdrop-blur-md;
+    @apply bg-white/5 hover:bg-white/10 text-white border border-white/5 shadow-xl backdrop-blur-md hover:border-white/10;
   }
-  
+
   .btn-ghost {
-    @apply hover:bg-white/5 text-slate-300 hover:text-white transition-colors;
+    @apply hover:bg-white/5 text-muted-foreground hover:text-foreground transition-all rounded-xl;
   }
 
-  .input-field {
-    @apply w-full bg-slate-900/60 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50 transition-all shadow-inner;
+  .input-minimal {
+    @apply w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-white placeholder:text-muted-foreground hover:bg-white/10;
   }
 
-  /* Shimmer Effect Utility */
-  .shimmer-hover {
-    position: relative;
-    overflow: hidden;
-  }
-  .shimmer-hover::after {
-    content: "";
-    position: absolute;
-    top: -50%;
-    left: -60%;
-    width: 20%;
-    height: 200%;
-    background: linear-gradient(to right, transparent, rgba(255,255,255,0.08), transparent);
-    transform: rotate(30deg);
-    transition: 0.6s ease-in-out;
-    pointer-events: none;
-  }
-  .shimmer-hover:hover::after {
-    left: 120%;
-  }
-
-  /* Custom Scrollbar Utility */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-slate-700/50 rounded-full hover:bg-slate-600/50;
-  }
-
-  /* Animations */
-  .animate-slide-up {
-    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-  
-  .animate-fade-in {
-    animation: fadeIn 0.4s ease-out forwards;
-  }
-
-  .animate-bounce-slight {
-    animation: bounceSlight 2s infinite ease-in-out;
+  .card {
+    @apply bg-card/40 backdrop-blur-2xl border border-white/5 shadow-2xl hover:border-primary/30 hover:bg-card/50 transition-all duration-500;
+    padding: var(--card-padding);
+    border-radius: var(--card-radius);
   }
 }
 
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 20px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.3);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
@@ -156,12 +182,23 @@
   to { opacity: 1; }
 }
 
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-bounce-slight {
+  animation: bounceSlight 2s infinite ease-in-out;
+}
+
 @keyframes bounceSlight {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
 
-/* Base Fixes for Safe Areas (Mobile Notches) */
 @supports(padding: max(0px)) {
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);

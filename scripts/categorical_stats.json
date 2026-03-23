@@ -1,0 +1,77 @@
+{
+  "muscle_group": [
+    "abdominals",
+    "abductors",
+    "adductors",
+    "biceps",
+    "calves",
+    "chest",
+    "forearms",
+    "glutes",
+    "hamstrings",
+    "lats",
+    "lower back",
+    "middle back",
+    "neck",
+    "quadriceps",
+    "shoulders",
+    "traps",
+    "triceps"
+  ],
+  "muscle_group_secondary": [
+    "abdominals",
+    "abductors",
+    "adductors",
+    "biceps",
+    "calves",
+    "chest",
+    "forearms",
+    "glutes",
+    "hamstrings",
+    "lats",
+    "lower back",
+    "middle back",
+    "neck",
+    "quadriceps",
+    "shoulders",
+    "traps",
+    "triceps"
+  ],
+  "equipment": [
+    "bands",
+    "barbell",
+    "body only",
+    "cable",
+    "dumbbell",
+    "e-z curl bar",
+    "exercise ball",
+    "foam roll",
+    "kettlebells",
+    "machine",
+    "medicine ball",
+    "other"
+  ],
+  "difficulty_level": [
+    "beginner",
+    "expert",
+    "intermediate"
+  ],
+  "mechanic": [
+    "compound",
+    "isolation"
+  ],
+  "force": [
+    "pull",
+    "push",
+    "static"
+  ],
+  "category": [
+    "cardio",
+    "olympic weightlifting",
+    "plyometrics",
+    "powerlifting",
+    "strength",
+    "stretching",
+    "strongman"
+  ]
+}

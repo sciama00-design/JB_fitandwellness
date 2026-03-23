@@ -1,24 +1,65 @@
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { exerciseService } from '../../services/exerciseService';
-import { Plus, Loader2, Sparkles, Search, X } from 'lucide-react';
+import { Plus, Loader2, Search, X, Activity } from 'lucide-react';
 import ExerciseCard from '../ExerciseCard';
 import AdvancedExerciseFilters from '../ExerciseFilters';
 import ExerciseDetailModal from '../ExerciseDetailModal';
+import ExerciseFormModal from './ExerciseFormModal';
 import { useAuth } from '../../lib/auth';
 import type { ExerciseLibrary as ExerciseType } from '../../types/database';
+import { motion, AnimatePresence } from 'framer-motion';
+import toast from 'react-hot-toast';
 
 export default function ExerciseLibraryTab() {
   const { user, role } = useAuth();
+  const queryClient = useQueryClient();
   const [filteredExercises, setFilteredExercises] = useState<ExerciseType[]>([]);
+  const [visibleCount, setVisibleCount] = useState(24);
   const [selectedExercise, setSelectedExercise] = useState<ExerciseType | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingExercise, setEditingExercise] = useState<ExerciseType | null>(null);
 
   const { data: exercises, isLoading, isError } = useQuery({
     queryKey: ['exercises'],
     queryFn: exerciseService.getAllExercises,
   });
 
-  const emptyExercises = useMemo(() => [] as ExerciseType[], []);
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(24);
+  }, [filteredExercises]);
+
+  // Base filtering: Hide system exercises if a personal fork exists
+  const baseExercises = useMemo(() => {
+    if (!exercises) return [];
+    
+    // Find IDs of system exercises that this coach has forked
+    const forkedSystemIds = new Set(
+      exercises
+        .filter(e => e.coach_id === user?.id && e.forked_from)
+        .map(e => e.forked_from)
+    );
+
+    return exercises.filter(e => {
+      // If it's a system exercise and we have a personal version, hide the system one
+      if (e.coach_id === null && forkedSystemIds.has(e.id)) {
+        return false;
+      }
+      return true;
+    });
+  }, [exercises, user?.id]);
+
+  const visibleExercises = useMemo(() => {
+    return filteredExercises.slice(0, visibleCount);
+  }, [filteredExercises, visibleCount]);
+
+  const hasMore = visibleCount < filteredExercises.length;
+
+  const loadMore = () => {
+    setVisibleCount(prev => Math.min(prev + 24, filteredExercises.length));
+  };
+
 
   const handleInfo = (id: string) => {
     const exercise = exercises?.find(e => e.id === id);
@@ -27,92 +68,164 @@ export default function ExerciseLibraryTab() {
     }
   };
 
+  const handleEdit = (id: string) => {
+    const exercise = exercises?.find(e => e.id === id);
+    if (exercise) {
+      setEditingExercise(exercise);
+      setIsFormOpen(true);
+    }
+  };
+
+  const handleCreate = () => {
+    setEditingExercise(null);
+    setIsFormOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Sei sicuro di voler eliminare questo esercizio?')) return;
+    try {
+      await exerciseService.deleteExercise(id);
+      queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      toast.success('Esercizio eliminato');
+    } catch (error) {
+      console.error(error);
+      toast.error('Errore durante l\'eliminazione');
+    }
+  };
+
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <Loader2 className="w-10 h-10 animate-spin text-primary-500" />
-        <p className="text-slate-400 animate-pulse">Loading Exercise Library...</p>
+      <div className="flex flex-col items-center justify-center py-32 space-y-6">
+        <div className="relative">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+          <div className="absolute inset-0 blur-xl bg-primary/20 animate-pulse"></div>
+        </div>
+        <p className="text-muted-foreground animate-pulse font-black uppercase tracking-widest text-[10px]">Indicizzazione database...</p>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 space-y-6 max-w-md mx-auto text-center">
-        <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center">
-          <X className="w-10 h-10 text-red-500" />
+      <div className="max-w-md mx-auto py-20 text-center space-y-8">
+        <div className="w-20 h-20 bg-red-500/10 rounded-[2rem] flex items-center justify-center mx-auto border border-red-500/20">
+          <X className="w-10 h-10 text-red-500/40" />
         </div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-white">Errore nel caricamento</h2>
-          <p className="text-slate-400">Non siamo riusciti a caricare la libreria degli esercizi.</p>
+        <div className="space-y-4">
+          <h2 className="text-2xl font-black text-foreground italic uppercase">Sync Failure</h2>
+          <p className="text-muted-foreground font-medium text-sm">Non siamo riusciti a caricare la libreria esercizi.</p>
         </div>
         <button 
           onClick={() => window.location.reload()}
-          className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold transition-all"
+          className="h-12 px-8 glass-card rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all text-muted-foreground"
         >
-          Riprova
+          Riprova Sync
         </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h2 className="text-3xl font-black tracking-tight text-white">Esercizi</h2>
-            <div className="px-3 py-1 bg-primary-500/10 border border-primary-500/20 rounded-full">
-              <span className="text-xs font-bold text-primary-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3" />
-                {exercises?.length || 0}
+    <div className="space-y-6 animate-in fade-in duration-700">
+      {/* Tab Header */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 sm:gap-8 px-1">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <h2 className="text-3xl font-black italic tracking-tighter text-foreground uppercase">Esercizi</h2>
+            <div className="px-4 py-1.5 bg-primary/10 border border-primary/20 rounded-full shadow-lg shadow-primary/5">
+              <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5" />
+                {exercises?.length || 0} Assets
               </span>
             </div>
           </div>
-          <p className="text-slate-400 font-medium">
-            Esplora la collezione completa di esercizi.
+          <p className="text-muted-foreground font-bold uppercase tracking-widest text-[9px] opacity-40">
+            Motore di ricerca esercizi e asset multimediali
           </p>
         </div>
 
         {role === 'coach' && (
-          <div className="flex items-center gap-3">
-            <button className="group relative px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold transition-all duration-300 shadow-xl hover:scale-105 active:scale-95 flex items-center gap-2 overflow-hidden border border-slate-700 text-sm">
-              <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-300" />
-              <span>Nuovo Esercizio</span>
-            </button>
-          </div>
+          <button 
+            onClick={handleCreate}
+            className="h-14 px-8 bg-secondary/10 border border-white/5 hover:border-primary/40 text-foreground rounded-2xl font-black italic uppercase tracking-widest text-[10px] flex items-center gap-3 transition-all group overflow-hidden shadow-xl"
+          >
+            <div className="relative">
+              <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-500 text-primary" />
+              <div className="absolute inset-0 blur-md bg-primary/40 animate-pulse"></div>
+            </div>
+            Nuova Risorsa
+          </button>
         )}
       </div>
 
-      <div className="relative z-10">
+      {/* Filters Area */}
+      <div className="glass-card p-2 rounded-3xl sm:rounded-[2.5rem] border-white/5 shadow-2xl relative z-20">
         <AdvancedExerciseFilters 
-          exercises={exercises || emptyExercises} 
+          exercises={baseExercises} 
           onFilterChange={setFilteredExercises}
           userId={user?.id || undefined}
         />
       </div>
 
-      <div className="space-y-6">
-        {filteredExercises.length === 0 ? (
-          <div className="text-center py-20 glass rounded-[2.5rem] border-dashed border-2 border-slate-800/50 bg-slate-900/20">
-            <div className="max-w-xs mx-auto space-y-4">
-              <Search className="w-8 h-8 text-slate-600 mx-auto" />
-              <h3 className="text-xl font-bold text-slate-300">Nessun risultato</h3>
-              <p className="text-slate-500">Prova a modificare i filtri.</p>
+      {/* Grid Area */}
+      <div>
+        <AnimatePresence mode="wait">
+          {filteredExercises.length === 0 ? (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="py-32 glass-card rounded-[3rem] border-dashed border-2 border-white/5 bg-secondary/5 text-center space-y-6"
+            >
+              <div className="w-20 h-20 bg-muted/10 rounded-[2.5rem] flex items-center justify-center mx-auto border border-white/5">
+                <Search className="w-10 h-10 text-muted-foreground opacity-10" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-black text-foreground italic uppercase tracking-tighter opacity-60">Nessuna Corrispondenza</h3>
+                <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest opacity-30">Affina i parametri di ricerca</p>
+              </div>
+            </motion.div>
+          ) : (
+            <div className="space-y-12">
+              <motion.div 
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-7 gap-6"
+              >
+                <AnimatePresence mode="popLayout">
+                  {visibleExercises.map((exercise) => (
+                    <motion.div
+                      key={exercise.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <ExerciseCard 
+                        exercise={exercise} 
+                        isCoach={role === 'coach'}
+                        onInfo={handleInfo}
+                        onEdit={handleEdit}
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+
+              {hasMore && (
+                <div className="flex justify-center pt-8 pb-12">
+                  <button
+                    onClick={loadMore}
+                    className="h-14 px-12 glass-card rounded-2xl font-black italic uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all text-muted-foreground border-white/10 hover:border-primary/50 group"
+                  >
+                    <span className="group-hover:text-primary transition-colors">Carica Altri Esercizi</span>
+                    <div className="text-[8px] opacity-40 mt-1 not-italic">
+                      Mostrati {visibleCount} di {filteredExercises.length}
+                    </div>
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredExercises.map((exercise) => (
-              <ExerciseCard 
-                key={exercise.id} 
-                exercise={exercise} 
-                isCoach={role === 'coach'}
-                onInfo={handleInfo}
-              />
-            ))}
-          </div>
-        )}
+          )}
+        </AnimatePresence>
       </div>
 
       {selectedExercise && (
@@ -120,8 +233,19 @@ export default function ExerciseLibraryTab() {
           exercise={selectedExercise}
           isOpen={!!selectedExercise}
           onClose={() => setSelectedExercise(null)}
+          onDelete={handleDelete}
+          isCoach={role === 'coach'}
         />
       )}
+
+      <ExerciseFormModal 
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        exercise={editingExercise}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['exercises'] });
+        }}
+      />
     </div>
   );
 }

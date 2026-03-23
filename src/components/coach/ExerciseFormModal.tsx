@@ -1,0 +1,387 @@
+import React, { useState, useEffect } from 'react';
+import { Save, Plus, Trash2, Globe, Languages } from 'lucide-react';
+import Modal from '../Modal';
+import { EXERCISE_TRANSLATIONS } from '../../lib/translations';
+import { exerciseService } from '../../services/exerciseService';
+import type { ExerciseLibrary } from '../../types/database';
+import { useAuth } from '../../lib/auth';
+import toast from 'react-hot-toast';
+
+interface ExerciseFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  exercise?: ExerciseLibrary | null;
+  onSuccess: () => void;
+}
+
+export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess }: ExerciseFormModalProps) {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState<Partial<ExerciseLibrary>>({
+    name: '',
+    name_it: '',
+    description: '',
+    description_it: '',
+    muscle_group: '',
+    muscle_group_secondary: '',
+    equipment: '',
+    mechanic: '',
+    force: '',
+    difficulty_level: 'intermediate',
+    video_url: '',
+    video_urls: [],
+    images: [],
+    coach_id: user?.id
+  });
+
+  const [imageUrl, setImageUrl] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+
+  useEffect(() => {
+    if (exercise) {
+      setFormData({
+        ...exercise,
+        video_urls: exercise.video_urls || (exercise.video_url ? [exercise.video_url] : []),
+        images: exercise.images || []
+      });
+    } else {
+      setFormData({
+        name: '',
+        name_it: '',
+        description: '',
+        description_it: '',
+        muscle_group: '',
+        muscle_group_secondary: '',
+        equipment: '',
+        mechanic: '',
+        force: '',
+        difficulty_level: 'intermediate',
+        video_url: '',
+        video_urls: [],
+        images: [],
+        coach_id: user?.id
+      });
+    }
+  }, [exercise, user]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name) {
+      toast.error('Il nome è obbligatorio');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (exercise?.id) {
+        const isSystemExercise = !exercise.coach_id;
+        
+        // Detect if media changed
+        const hasMediaChanged = 
+          JSON.stringify(formData.video_urls || []) !== JSON.stringify(exercise.video_urls || []) ||
+          JSON.stringify(formData.images || []) !== JSON.stringify(exercise.images || []) ||
+          (formData.video_url || '') !== (exercise.video_url || '');
+
+        if (isSystemExercise && hasMediaChanged) {
+          // Create a personal fork
+          const { id, created_at, ...forkData } = formData;
+          await exerciseService.createExercise({
+            ...forkData,
+            coach_id: user?.id,
+            forked_from: exercise.id
+          });
+          toast.success('Creato duplicato personale con i nuovi media');
+        } else {
+          // Direct update (Global for system text, or personal for personal exercises)
+          await exerciseService.updateExercise(exercise.id, formData);
+          toast.success('Esercizio aggiornato');
+        }
+      } else {
+        await exerciseService.createExercise({
+          ...formData,
+          coach_id: user?.id
+        });
+        toast.success('Esercizio creato');
+      }
+      onSuccess();
+      onClose();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || 'Errore durante il salvataggio');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addImage = () => {
+    if (imageUrl && !formData.images?.includes(imageUrl)) {
+      setFormData(prev => ({
+        ...prev,
+        images: [...(prev.images || []), imageUrl]
+      }));
+      setImageUrl('');
+    }
+  };
+
+  const addVideo = () => {
+    if (videoUrl) {
+      // Basic normalization of the URL
+      let cleanUrl = videoUrl.trim();
+      if (!cleanUrl.startsWith('http')) {
+        toast.error('URL non valido');
+        return;
+      }
+
+      setFormData(prev => {
+        const currentUrls = prev.video_urls || [];
+        if (currentUrls.includes(cleanUrl)) {
+          toast.error('Video già presente');
+          return prev;
+        }
+
+        const newUrls = [...currentUrls, cleanUrl];
+        return {
+          ...prev,
+          video_urls: newUrls,
+          // Always keep video_url (singular) in sync with the first video for legacy support
+          video_url: newUrls[0]
+        };
+      });
+      setVideoUrl('');
+    }
+  };
+
+  const removeImage = (url: string) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images?.filter(img => img !== url) || []
+    }));
+  };
+
+  const removeVideo = (url: string) => {
+    setFormData(prev => {
+      const newUrls = prev.video_urls?.filter(v => v !== url) || [];
+      return {
+        ...prev,
+        video_urls: newUrls,
+        video_url: newUrls.length > 0 ? newUrls[0] : null
+      };
+    });
+  };
+
+  return (
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose} 
+      title={exercise ? 'Modifica Esercizio' : 'Nuovo Esercizio'}
+    >
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Nomi */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <Globe className="w-3 h-3" /> Nome (EN)
+            </label>
+            <input
+              type="text"
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-sm"
+              value={formData.name || ''}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g. Bench Press"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+              <Languages className="w-3 h-3" /> Nome (IT)
+            </label>
+            <input
+              type="text"
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-sm text-primary"
+              value={formData.name_it || ''}
+              onChange={e => setFormData({ ...formData, name_it: e.target.value })}
+              placeholder="e.g. Panca Piana"
+            />
+          </div>
+        </div>
+
+        {/* Categorie */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Gruppo Muscolare</label>
+            <select
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              value={formData.muscle_group || ''}
+              onChange={e => setFormData({ ...formData, muscle_group: e.target.value })}
+            >
+              <option value="">Seleziona...</option>
+              {Object.entries(EXERCISE_TRANSLATIONS.muscle_groups).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Attrezzatura</label>
+            <select
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              value={formData.equipment || ''}
+              onChange={e => setFormData({ ...formData, equipment: e.target.value })}
+            >
+              <option value="">Seleziona...</option>
+              {Object.entries(EXERCISE_TRANSLATIONS.equipment).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Meccanica</label>
+            <select
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              value={formData.mechanic || ''}
+              onChange={e => setFormData({ ...formData, mechanic: e.target.value })}
+            >
+              <option value="">Seleziona...</option>
+              {Object.entries(EXERCISE_TRANSLATIONS.mechanic).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Forza</label>
+            <select
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              value={formData.force || ''}
+              onChange={e => setFormData({ ...formData, force: e.target.value })}
+            >
+              <option value="">Seleziona...</option>
+              {Object.entries(EXERCISE_TRANSLATIONS.force).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Difficoltà</label>
+            <select
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              value={formData.difficulty_level || ''}
+              onChange={e => setFormData({ ...formData, difficulty_level: e.target.value })}
+            >
+              {Object.entries(EXERCISE_TRANSLATIONS.difficulty_level).map(([val, label]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Video URLs */}
+        <div className="space-y-4">
+          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">URL Video (YouTube/Vimeo)</label>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              className="flex-1 bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              value={videoUrl}
+              onChange={e => setVideoUrl(e.target.value)}
+              placeholder="Incolla URL video..."
+            />
+            <button
+              type="button"
+              onClick={addVideo}
+              className="px-6 bg-secondary/10 border border-white/5 rounded-2xl text-primary hover:bg-white/5 transition-all"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="space-y-2">
+            {formData.video_urls?.map((url, idx) => (
+              <div key={idx} className="flex items-center justify-between bg-secondary/10 border border-white/5 rounded-xl px-4 py-2 group">
+                <span className="text-[10px] font-medium truncate flex-1 opacity-60">{url}</span>
+                <button
+                  type="button"
+                  onClick={() => removeVideo(url)}
+                  className="p-1.5 text-red-500/40 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Immagini */}
+        <div className="space-y-4">
+          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Immagini</label>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              className="flex-1 bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              value={imageUrl}
+              onChange={e => setImageUrl(e.target.value)}
+              placeholder="Incolla URL immagine..."
+            />
+            <button
+              type="button"
+              onClick={addImage}
+              className="px-6 bg-secondary/10 border border-white/5 rounded-2xl text-primary hover:bg-white/5 transition-all"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+            {formData.images?.map((url, idx) => (
+              <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-white/5 bg-secondary/5">
+                <img src={url} alt="" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removeImage(url)}
+                  className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Descrizioni */}
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Descrizione (IT)</label>
+            <textarea
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-medium text-sm h-32"
+              value={formData.description_it || ''}
+              onChange={e => setFormData({ ...formData, description_it: e.target.value })}
+              placeholder="Istruzioni per l'esecuzione in italiano..."
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Description (EN)</label>
+            <textarea
+              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-medium text-sm h-32 opacity-60"
+              value={formData.description || ''}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Instructions in English..."
+            />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end pt-4">
+          <button
+            type="submit"
+            disabled={loading}
+            className="h-14 px-10 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-[11px] flex items-center gap-3 shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-98 transition-all disabled:opacity-50"
+          >
+            {loading ? <Save className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Salva Esercizio
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

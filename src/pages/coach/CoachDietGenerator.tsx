@@ -1,9 +1,16 @@
 import DietCalculator from '../../components/coach/DietCalculator';
+import { motion } from 'framer-motion';
 
 export default function CoachDietGenerator() {
   return (
-    <div className="pt-24 pb-12 min-h-screen bg-slate-950">
-      <DietCalculator />
-    </div>
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="pt-12 pb-24 min-h-screen px-4 lg:px-8"
+    >
+      <div className="max-w-7xl mx-auto">
+        <DietCalculator />
+      </div>
+    </motion.div>
   );
 }

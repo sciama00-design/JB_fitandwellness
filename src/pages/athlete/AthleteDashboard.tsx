@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { planService } from '../../services/planService';
@@ -17,19 +17,21 @@ import {
   Flame,
   ArrowRight,
   Eye,
-  CheckCircle2
+  CheckCircle2,
+  Apple,
+  Trash2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { motion, AnimatePresence } from 'framer-motion';
 import WorkoutPlanView from '../../components/athlete/WorkoutPlanView';
 import WorkoutSessionDetailModal from '../../components/workout/WorkoutSessionDetailModal';
-
 import DailyCheckInModal from '../../components/athlete/DailyCheckInModal';
-
 import { measurementService } from '../../services/measurementService';
 import { appointmentService } from '../../services/appointmentService';
 import Calendar from '../../components/calendar/Calendar';
+import clsx from 'clsx';
 
 type TabType = 'home' | 'train' | 'calendar';
 
@@ -40,6 +42,21 @@ export default function AthleteDashboard() {
   const [viewingPlanId, setViewingPlanId] = useState<string | null>(null);
   const [viewingSessionId, setViewingSessionId] = useState<string | null>(null);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const deleteSessionMutation = useMutation({
+    mutationFn: (sessionId: string) => sessionService.cancelSession(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['athlete-history'] });
+    },
+  });
+
+  const handleDeleteSession = (e: React.MouseEvent | null, sessionId: string) => {
+    e?.stopPropagation();
+    if (confirm('Sei sicuro di voler eliminare questa sessione?')) {
+      deleteSessionMutation.mutate(sessionId);
+    }
+  };
 
   const { data: todayLog } = useQuery({
     queryKey: ['daily-log', user?.id],
@@ -74,8 +91,8 @@ export default function AthleteDashboard() {
   if (isLoadingPlans || isLoadingHistory || isLoadingMeasurements || isLoadingAppointments) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <Loader2 className="w-10 h-10 animate-spin text-primary-500" />
-        <p className="text-slate-400 animate-pulse font-medium">Carico la tua palestra...</p>
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="text-muted-foreground animate-pulse font-medium">Carico la tua palestra...</p>
       </div>
     );
   }
@@ -83,7 +100,6 @@ export default function AthleteDashboard() {
   const lastSession = history?.[0];
   const totalWorkouts = history?.length || 0;
   
-  // Calculate total volume from history
   const totalVolume = history?.reduce((acc, session) => {
     const sessionVolume = (session as any).exercise_logs?.reduce((sAcc: number, log: any) => {
       return sAcc + (log.reps * (log.weight || 0));
@@ -91,10 +107,8 @@ export default function AthleteDashboard() {
     return acc + sessionVolume;
   }, 0) || 0;
 
-  // Format volume (e.g., 12500 -> 12.5)
   const volumeInTons = (totalVolume / 1000).toFixed(1);
 
-  // Simple streak calculation (just for show or based on last 7 days)
   const activeDaysLastWeek = history?.filter(s => {
     const date = new Date(s.started_at);
     const weekAgo = new Date();
@@ -102,251 +116,345 @@ export default function AthleteDashboard() {
     return date > weekAgo;
   }).length || 0;
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 }
+  };
+
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
+    <div className="space-y-10">
       {/* Header & Welcome */}
-      <header className="px-1">
-        <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+      <motion.header 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="px-1"
+      >
+        <h1 className="text-5xl font-black tracking-tighter bg-gradient-to-r from-white via-primary to-accent bg-clip-text text-transparent italic leading-[0.8]">
           Ciao, {user?.email?.split('@')[0]}
         </h1>
-        <p className="text-slate-400 mt-1 font-medium">Pronto per la sessione di oggi?</p>
-      </header>
+        <p className="text-muted-foreground mt-4 font-black tracking-[0.3em] uppercase text-[10px] opacity-50">Elite Training Protocol Active</p>
+      </motion.header>
 
       {/* Main Content Area */}
-      <main className="animate-slide-up">
+      <AnimatePresence mode="wait">
         
         {/* --- HOME TAB --- */}
         {activeTab === 'home' && (
-          <div className="space-y-8 px-1">
+          <motion.div 
+            key="home"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            className="space-y-10"
+          >
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="glass p-5 rounded-3xl border border-slate-800/50 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <Flame className="w-16 h-16 text-orange-500 -rotate-12" />
-                </div>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Attività</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-3xl font-black text-orange-400">{activeDaysLastWeek}</span>
-                  <span className="text-slate-500 text-sm font-bold">/7gg</span>
-                </div>
-              </div>
-
-              <div className="glass p-5 rounded-3xl border border-slate-800/50 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <Trophy className="w-16 h-16 text-amber-500 -rotate-12" />
-                </div>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Totali</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-3xl font-black text-amber-400">{totalWorkouts}</span>
-                  <span className="text-slate-500 text-sm font-bold">sessioni</span>
-                </div>
-              </div>
-
-              <div className="glass p-5 rounded-3xl border border-slate-800/50 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <TrendingUp className="w-16 h-16 text-emerald-500 -rotate-12" />
-                </div>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Volume</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-3xl font-black text-emerald-400">{volumeInTons}</span>
-                  <span className="text-slate-500 text-sm font-bold">ton</span>
-                </div>
-              </div>
-
-              <div className="glass p-5 rounded-3xl border border-slate-800/50 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <CalendarIcon className="w-16 h-16 text-primary-500 -rotate-12" />
-                </div>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Prossimo</p>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-lg font-black text-primary-400">Domani</span>
-                </div>
-              </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+              {[
+                { label: 'Attività', val: activeDaysLastWeek, unit: '/7gg', icon: Flame, color: 'text-orange-500' },
+                { label: 'Totali', val: totalWorkouts, unit: 'sessioni', icon: Trophy, color: 'text-amber-500' },
+                { label: 'Volume', val: volumeInTons, unit: 'ton', icon: TrendingUp, color: 'text-emerald-500' },
+                { label: 'Prossimo', val: 'Domani', unit: '', icon: CalendarIcon, color: 'text-primary' },
+              ].map((stat, i) => (
+                <motion.div 
+                  key={i}
+                  variants={itemVariants}
+                  className="glass-card p-4 sm:p-5 rounded-2xl sm:rounded-3xl relative overflow-hidden group min-h-[140px] flex flex-col justify-between"
+                >
+                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-30 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500">
+                    <stat.icon className={clsx("w-12 h-12 sm:w-20 sm:h-20", stat.color)} />
+                  </div>
+                  <p className="text-muted-foreground text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] opacity-50 group-hover:opacity-100 transition-opacity">{stat.label}</p>
+                  <div className="flex items-baseline gap-1 sm:gap-2 relative z-10 mt-auto">
+                    <span className={clsx("text-2xl sm:text-4xl font-black italic tracking-tighter", stat.color)}>{stat.val}</span>
+                    <span className="text-muted-foreground text-[8px] sm:text-[10px] font-bold uppercase tracking-widest">{stat.unit}</span>
+                  </div>
+                </motion.div>
+              ))}
             </div>
 
-            {/* Daily Check-in Card */}
-            <div className={`relative group ${todayLog ? 'opacity-80' : ''}`}>
-              <div className={`absolute -inset-0.5 rounded-[2rem] blur transition duration-1000 ${todayLog ? 'bg-slate-800 opacity-20' : 'bg-gradient-to-r from-emerald-500 to-teal-500 opacity-30 group-hover:opacity-100'}`}></div>
-              <div className="relative glass p-6 rounded-[2rem] border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${todayLog ? 'bg-slate-800 text-emerald-500' : 'bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-lg shadow-emerald-500/20'}`}>
-                     <CheckCircle2 className="w-7 h-7" />
+            {/* Daily Check-in & Nutrition Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Daily Check-in Card */}
+              <motion.div variants={itemVariants} className="group">
+                <div className="card h-full flex flex-col justify-between gap-8 relative overflow-hidden">
+                   <div className="flex items-center gap-5">
+                      <div className={clsx(
+                        "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500",
+                        todayLog 
+                          ? 'bg-primary/20 text-primary border border-primary/30' 
+                          : 'bg-gradient-to-br from-primary to-emerald-400 text-primary-foreground shadow-xl shadow-primary/20 scale-110'
+                      )}>
+                        <CheckCircle2 className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black text-foreground italic">{todayLog ? 'Check-in Completato' : 'Check-in Giornaliero'}</h3>
+                        <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mt-1">
+                          {todayLog ? `Peso attuale: ${todayLog.weight_kg}kg` : 'Registra i tuoi progressi'}
+                        </p>
+                      </div>
                    </div>
-                   <div>
-                     <h3 className="text-xl font-bold text-white">{todayLog ? 'Check-in Completato!' : 'Check-in Giornaliero'}</h3>
-                     <p className="text-slate-400 text-sm">
-                       {todayLog ? `Peso: ${todayLog.weight_kg}kg • Kcal: ${todayLog.kcal_eaten}` : 'Registra peso, calorie, sonno e acqua.'}
-                     </p>
-                   </div>
+                   <button
+                     onClick={() => setIsCheckInOpen(true)}
+                     className={clsx(
+                       "btn w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase transition-all",
+                       todayLog 
+                         ? 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border' 
+                         : 'btn-primary shadow-2xl shadow-primary/30'
+                     )}
+                   >
+                     {todayLog ? 'Aggiorna Dati' : 'Registra Ora'}
+                   </button>
+                   
+                   {/* Background Decoration */}
+                   <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-primary/5 blur-3xl rounded-full"></div>
                 </div>
-                <button
-                  onClick={() => setIsCheckInOpen(true)}
-                  className={`btn px-6 rounded-xl font-bold ${todayLog ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'btn-primary bg-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-500/20'}`}
-                >
-                  {todayLog ? 'Modifica Dati' : 'Registra Dati'}
-                </button>
-              </div>
+              </motion.div>
+
+              {/* Nutrition Card */}
+              <motion.div variants={itemVariants} className="group">
+                <div className="card h-full flex flex-col justify-between gap-8 relative overflow-hidden border-orange-500/10 hover:border-orange-500/30">
+                  <div className="flex items-center gap-5">
+                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-xl shadow-orange-500/20 flex items-center justify-center transform group-hover:rotate-6 transition-transform">
+                       <Apple className="w-8 h-8" />
+                     </div>
+                     <div>
+                       <h3 className="text-2xl font-black text-foreground italic">Alimentazione</h3>
+                       <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mt-1">Controllo nutrienti</p>
+                     </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Link 
+                      to="/athlete/nutrition"
+                      className="btn h-14 bg-secondary/50 hover:bg-secondary text-foreground rounded-2xl font-black text-[10px] tracking-widest uppercase border border-border transition-all"
+                    >
+                      Vedi Piano
+                    </Link>
+                    <Link 
+                      to="/athlete/planner"
+                      className="btn h-14 bg-orange-500 text-white hover:bg-orange-600 rounded-2xl font-black text-[10px] tracking-widest uppercase shadow-xl shadow-orange-500/20 transition-all"
+                    >
+                      Weekly Planner
+                    </Link>
+                  </div>
+                   {/* Background Decoration */}
+                   <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-orange-500/5 blur-3xl rounded-full"></div>
+                </div>
+              </motion.div>
             </div>
 
             {/* Resume / Suggestion Card */}
-            {lastSession ? (
-              <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary-500 to-indigo-500 rounded-[2rem] opacity-30 blur group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
-                <div className="relative glass p-8 rounded-[2rem] border border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="space-y-2 text-center md:text-left">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-500/20 text-primary-400 text-[10px] font-black uppercase tracking-widest mb-2 border border-primary-500/20">
-                      Continua il tuo percorso
+            <motion.div variants={itemVariants}>
+              {lastSession ? (
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-primary via-blue-500 to-accent rounded-[3rem] opacity-20 blur-2xl group-hover:opacity-40 transition duration-1000"></div>
+                  <div className="relative card p-10 sm:p-14 flex flex-col md:flex-row items-center justify-between gap-12 overflow-hidden">
+                    <div className="space-y-6 text-center md:text-left relative z-10">
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.3em] mb-2 border border-primary/20 backdrop-blur-md">
+                        Next Mission
+                      </div>
+                      <h2 className="text-5xl font-black text-foreground leading-[0.9] italic tracking-tighter uppercase">
+                        {(lastSession.workout_plans as any)?.name}
+                      </h2>
+                      <p className="text-muted-foreground font-medium text-base tracking-wide opacity-70">
+                        Ultima sessione completata {formatDistanceToNow(new Date(lastSession.started_at), { addSuffix: true, locale: it })}.<br className="hidden sm:block" /> Pronto a superare i tuoi limiti?
+                      </p>
                     </div>
-                    <h2 className="text-3xl font-black text-white leading-tight">L'ultimo allenamento: {(lastSession.workout_plans as any)?.name}</h2>
-                    <p className="text-slate-400 font-medium">Era {formatDistanceToNow(new Date(lastSession.started_at), { addSuffix: true, locale: it })}. Sei pronto a raddoppiare?</p>
+                    <Link 
+                      to={`/athlete/workout/${(lastSession.workout_plans as any)?.id}`}
+                      className="btn btn-primary h-24 px-12 rounded-[2rem] shadow-[0_20px_50px_rgba(6,182,212,0.3)] flex items-center gap-6 text-2xl font-black transform hover:scale-105 active:scale-95 transition-all w-full md:w-auto overflow-hidden group/btn italic relative z-10"
+                    >
+                      <span className="relative z-10">START SESSION</span>
+                      <ArrowRight className="w-8 h-8 group-hover/btn:translate-x-3 transition-transform relative z-10" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                    </Link>
+                    
+                    {/* Inner Decoration */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
                   </div>
+                </div>
+              ) : (
+                <div className="card p-12 text-center space-y-6">
+                  <div className="w-24 h-24 bg-primary/10 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-primary/20">
+                    <Dumbbell className="w-10 h-10 text-primary" />
+                  </div>
+                  <h2 className="text-3xl font-black text-foreground italic">Inizia la Trasformazione</h2>
+                  <p className="text-muted-foreground font-bold text-sm max-w-sm mx-auto uppercase tracking-widest opacity-60">Scegli una scheda e inizia a costruire la tua versione migliore.</p>
                   <button 
                     onClick={() => setSearchParams({ tab: 'train' })}
-                    className="btn btn-primary h-16 px-8 rounded-2xl shadow-2xl shadow-primary-500/20 flex items-center gap-3 text-lg font-black transform hover:scale-105 active:scale-95 transition-all w-full md:w-auto overflow-hidden group/btn"
+                    className="btn btn-primary px-10 h-14 rounded-2xl font-black tracking-widest uppercase"
                   >
-                    <span>VAI AD ALLENARTI</span>
-                    <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                    Sfoglia Schede
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="glass p-12 rounded-[2rem] border border-slate-800/50 text-center space-y-4">
-                <div className="w-20 h-20 bg-primary-500/10 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                  <Dumbbell className="w-10 h-10 text-primary-500" />
-                </div>
-                <h2 className="text-2xl font-bold text-white">Inizia la tua Trasformazione</h2>
-                <p className="text-slate-400 max-w-sm mx-auto">Non hai ancora effettuato nessuna sessione. Scegli una scheda e inizia subito!</p>
-                <button 
-                  onClick={() => setSearchParams({ tab: 'train' })}
-                  className="btn btn-primary px-8 rounded-xl font-bold"
-                >
-                  Sfoglia le schede
-                </button>
-              </div>
-            )}
+              )}
+            </motion.div>
             
             {/* Recent Activity Mini-List */}
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="flex items-center justify-between px-2">
-                <h3 className="text-xl font-bold text-white">Attività Recente</h3>
-                <button onClick={() => setSearchParams({ tab: 'calendar' })} className="text-sm font-bold text-primary-400 hover:text-primary-300">Vedi tutto</button>
+                <h3 className="text-2xl font-black text-foreground italic tracking-tight">Attività Recente</h3>
+                <button 
+                  onClick={() => setSearchParams({ tab: 'calendar' })} 
+                  className="text-xs font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors"
+                >
+                  Vedi Archivio
+                </button>
               </div>
-              <div className="space-y-3">
-                {history?.slice(0, 3).map((session) => (
-                  <div 
+              <div className="grid grid-cols-1 gap-4">
+                {history?.slice(0, 3).map((session, idx) => (
+                  <motion.div 
                     key={session.id} 
+                    variants={itemVariants}
+                    custom={idx}
                     onClick={() => setViewingSessionId(session.id)}
-                    className="glass p-5 rounded-3xl border border-slate-800/30 flex items-center justify-between group hover:bg-slate-800/40 transition-colors cursor-pointer"
+                    className="glass-card p-6 rounded-3xl flex items-center justify-between group hover:bg-card/60 transition-all cursor-pointer border-white/5 hover:border-primary/20 shadow-xl"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-slate-500 group-hover:text-primary-400 transition-colors">
-                        <History className="w-6 h-6" />
+                    <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 bg-background/50 rounded-2xl flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors border border-border group-hover:border-primary/30">
+                        <History className="w-7 h-7" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-100 italic">{(session.workout_plans as any)?.name}</p>
-                        <p className="text-xs text-slate-500 font-medium">
+                        <p className="font-black text-foreground italic text-lg leading-none">{(session.workout_plans as any)?.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-2">
                           {format(new Date(session.started_at), "d MMMM", { locale: it })} • {Math.floor((session.duration_seconds || 0) / 60)} min
                         </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-slate-600 group-hover:translate-x-1 transition-transform" />
-                  </div>
+                    <div className="flex items-center gap-3">
+                       <button
+                         onClick={(e) => handleDeleteSession(e, session.id)}
+                         className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                         title="Elimina"
+                       >
+                         <Trash2 className="w-5 h-5" />
+                       </button>
+                       <div className="w-10 h-10 rounded-full border border-border flex items-center justify-center group-hover:border-primary group-hover:bg-primary/10 transition-all">
+                        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                       </div>
+                    </div>
+                  </motion.div>
                 ))}
               </div>
             </div>
 
-
-          </div>
+          </motion.div>
         )}
 
         {/* --- TRAIN TAB --- */}
         {activeTab === 'train' && (
-          <div className="space-y-6 px-1">
-            <header className="mb-8">
-              <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-                <div className="p-2 bg-primary-500/10 rounded-lg">
-                  <Dumbbell className="text-primary-500 w-6 h-6" />
+          <motion.div 
+            key="train"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            className="space-y-8"
+          >
+            <header className="mb-10">
+              <h2 className="text-3xl font-black text-foreground tracking-tight flex items-center gap-4 italic uppercase">
+                <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20">
+                  <Dumbbell className="text-primary w-8 h-8" />
                 </div>
                 Le tue Schede
               </h2>
-              <p className="text-slate-400 text-sm mt-2">Scegli il tuo allenamento e pusha al massimo.</p>
+              <p className="text-muted-foreground text-xs font-black uppercase tracking-[0.2em] mt-3 opacity-60">Programma personalizzato dal tuo coach</p>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
               {plans?.length === 0 ? (
-                <div className="col-span-full py-20 text-center glass rounded-3xl border border-dashed border-slate-800">
-                  <p className="text-slate-400 font-medium">Nessuna scheda ancora assegnata.<br/>Contatta il tuo coach!</p>
+                <div className="col-span-full py-24 text-center glass-card rounded-[2.5rem] border-dashed border-border">
+                  <p className="text-muted-foreground font-bold uppercase tracking-widest">Nessuna scheda ancora assegnata.<br/>Contatta il tuo coach!</p>
                 </div>
               ) : (
                 plans?.map((plan) => (
-                  <div key={plan.id} className="glass group hover:bg-slate-900/40 transition-all rounded-[2.5rem] p-8 border border-slate-800/50 flex flex-col gap-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/5 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-primary-500/10 transition-colors"></div>
-                    
-                    <div className="flex-1 space-y-3">
-                      <h3 className="text-2xl font-black text-white leading-tight italic">{plan.name}</h3>
-                      <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">
-                        {plan.description || "Un programma strutturato per farti dare il massimo ogni giorno."}
+                  <motion.div 
+                    key={plan.id} 
+                    variants={itemVariants}
+                    className="card group hover:scale-[1.02] transition-all flex flex-col gap-8 relative overflow-hidden"
+                  >
+                    <div className="flex-1 space-y-4">
+                      <h3 className="text-3xl font-black text-foreground italic leading-none tracking-tight">{plan.name}</h3>
+                      <p className="text-sm text-muted-foreground font-medium line-clamp-2 leading-relaxed opacity-80">
+                        {plan.description || "Allenamento intensivo progettato per massimizzare i tuoi risultati."}
                       </p>
                     </div>
 
-                      <div className="flex items-center gap-2 pt-4 border-t border-slate-800/50">
+                      <div className="flex items-center gap-4 pt-6 border-t border-border">
                         <div className="flex flex-col flex-1">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Aggiornato</span>
-                          <span className="text-xs font-bold text-slate-300">
+                          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-50">Ultimo aggiornamento</span>
+                          <span className="text-xs font-black text-foreground italic mt-1 uppercase tracking-wider">
                             {formatDistanceToNow(new Date(plan.created_at), { addSuffix: true, locale: it })}
                           </span>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-3">
                           <button 
                             onClick={() => setViewingPlanId(plan.id)}
-                            className="btn bg-slate-800 hover:bg-slate-700 text-slate-300 h-14 w-14 rounded-2xl flex items-center justify-center border border-slate-700/50 transition-all hover:scale-110 active:scale-95"
-                            title="Visualizza Scheda"
+                            className="btn h-14 w-14 bg-secondary/50 hover:bg-secondary text-foreground rounded-2xl flex items-center justify-center border border-border transition-all hover:scale-110 active:scale-95"
                           >
-                            <Eye className="w-5 h-5" />
+                            <Eye className="w-6 h-6 opacity-60" />
                           </button>
                           <Link 
                             to={`/athlete/workout/${plan.id}`}
-                            className="btn btn-primary h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg shadow-primary-500/20 hover:scale-110 active:scale-95 transition-all"
-                            title="Inizia Allenamento"
+                            className="btn btn-primary h-14 w-14 rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 hover:scale-110 active:scale-95 transition-all"
                           >
-                            <Play className="w-6 h-6 fill-current ml-1" />
+                            <Play className="w-7 h-7 fill-current ml-1" />
                           </Link>
                         </div>
                       </div>
-                  </div>
+                      
+                      {/* Decoration */}
+                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/5 blur-3xl rounded-full"></div>
+                  </motion.div>
                 ))
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* --- CALENDAR TAB --- */}
         {activeTab === 'calendar' && (
-          <div className="space-y-6 px-1">
-            <header className="mb-8">
-              <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3 italic">
-                <div className="p-2 bg-primary-500/10 rounded-2xl transform -rotate-6">
-                  <CalendarIcon className="text-primary-400 w-8 h-8" />
+          <motion.div 
+            key="calendar"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            className="space-y-8"
+          >
+            <header className="mb-10">
+              <h1 className="text-3xl font-black text-foreground tracking-tight flex items-center gap-4 italic uppercase">
+                <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20 transform -rotate-12 transition-transform hover:rotate-0">
+                  <CalendarIcon className="text-primary w-8 h-8" />
                 </div>
-                Il Tuo Percorso
+                Percorso & Archivio
               </h1>
-              <p className="text-slate-400 text-sm mt-3 font-medium">Visualizza allenamenti, appuntamenti e misurazioni.</p>
+              <p className="text-muted-foreground text-xs font-black uppercase tracking-[0.2em] mt-3 opacity-60">Allenamenti, misurazioni e appuntamenti</p>
             </header>
 
-            <Calendar 
-              sessions={history}
-              measurements={measurements}
-              appointments={appointments}
-              onViewSession={(id) => setViewingSessionId(id)}
-              className="mt-6"
-            />
-          </div>
+            <motion.div variants={itemVariants} className="glass-card p-4 rounded-[2.5rem] bg-card/30">
+              <Calendar 
+                sessions={history}
+                measurements={measurements}
+                appointments={appointments}
+                onViewSession={(id) => setViewingSessionId(id)}
+                onDeleteSession={(id) => handleDeleteSession(null, id)}
+              />
+            </motion.div>
+          </motion.div>
         )}
 
-      </main>
-
-      {/* Optional: Add a subtle background glow */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary-500/5 blur-[120px] rounded-full -z-10 pointer-events-none"></div>
+      </AnimatePresence>
 
       {/* Workout Plan View Modal */}
       {viewingPlanId && (

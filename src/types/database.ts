@@ -7,13 +7,20 @@ export type Profile = {
   role: UserRole;
   coach_id: string | null;
   created_at: string;
+  dietary_preferences: string[] | null;
+  intolerances: string[] | null;
+  disliked_foods: string[] | null;
+  schedule_constraints: string | null;
 };
 
 export type ExerciseLibrary = {
   id: string;
   name: string;
+  name_it?: string | null;
   description: string | null;
+  description_it?: string | null;
   video_url: string | null;
+  video_urls?: string[] | null;
   muscle_group: string | null;
   muscle_group_secondary: string | null;
   equipment: string | null;
@@ -21,6 +28,7 @@ export type ExerciseLibrary = {
   mechanic: string | null;
   force: string | null;
   images: string[] | null;
+  forked_from?: string | null;
   coach_id: string | null;
   created_at: string;
 };
@@ -134,3 +142,57 @@ export type Appointment = {
   location: string | null;
   created_at: string;
 };
+
+export type DietPlan = {
+  id: string;
+  athlete_id: string;
+  coach_id: string;
+  target_kcal: number;
+  target_protein?: number;
+  target_carbs?: number;
+  target_fats?: number;
+  ai_guidelines: string | null;
+  template_id: string;
+  selections: any; // JSONB
+  created_at: string;
+  updated_at: string;
+};
+
+export type AIMealPlan = {
+  id: string;
+  athlete_id: string;
+  coach_id: string;
+  date: string;
+  meals: any; // JSONB
+  created_at: string;
+  updated_at: string;
+};
+
+export type WeeklyPlannerEntry = {
+  id: string;
+  athlete_id: string;
+  date: string;
+  commitments: string | null;
+  meals: any | null;
+  daily_preferences: string | null;
+  ai_suggestions: string | null;
+  created_at: string;
+};
+
+export type Recipe = {
+  id: string;
+  name: string;
+  description: string | null;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  image_url: string | null;
+  external_link: string | null;
+  ingredients: any; // JSONB
+  instructions: string | null;
+  is_public: boolean;
+  coach_id: string | null;
+  created_at: string;
+};
+

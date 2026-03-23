@@ -1,0 +1,26 @@
+{today}
+Analizza il testo fornito dall'atleta e estrai gli impegni e i pasti per ogni giorno della settimana.
+
+Date della settimana da considerare: {weekDates}
+
+Per ogni pasto menzionato (colazione, pranzo, spuntino, cena), scomponilo in ingredienti.
+USA LA SKILL 'find_official_food' per ogni ingrediente per ottenere i dati nutrizionali corretti dal database.
+
+Rispondi SOLO con un array JSON di oggetti con questa struttura:
+[
+  { 
+    "date": "YYYY-MM-DD", 
+    "commitments": "descrizione impegno",
+    "meals": {
+      "pranzo": { 
+        "name": "Nome Piatto", 
+        "foods": [
+          { "name": "Ingrediente", "qty_grams": 100, "macros": { "kcal": 100, "p": 10, "c": 10, "f": 2 }, "is_official": true/false }
+        ],
+        "total_kcal": 400
+      }
+    }
+  }
+]
+
+Se per un giorno non ci sono impegni o pasti, non includerlo nell'array. Usa solo le date fornite.

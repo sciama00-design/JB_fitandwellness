@@ -14,16 +14,19 @@ import {
 import { it } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import DayDetailModal from './DayDetailModal';
+import { motion, AnimatePresence } from 'framer-motion';
+import clsx from 'clsx';
 
 interface CalendarProps {
   sessions?: any[];
   measurements?: any[];
   appointments?: any[];
   onViewSession?: (sessionId: string) => void;
+  onDeleteSession?: (sessionId: string) => void;
   className?: string;
 }
 
-export default function Calendar({ sessions = [], measurements = [], appointments = [], onViewSession, className = "" }: CalendarProps) {
+export default function Calendar({ sessions = [], measurements = [], appointments = [], onViewSession, onDeleteSession, className = "" }: CalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -54,74 +57,106 @@ export default function Calendar({ sessions = [], measurements = [], appointment
   };
 
   return (
-    <div className={`glass rounded-[2.5rem] p-6 border border-white/5 overflow-hidden ${className}`}>
+    <div className={clsx("glass-card rounded-[3rem] p-8 border-white/5 overflow-hidden shadow-2xl relative bg-secondary/5", className)}>
+      {/* Background decoration */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none"></div>
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-8 px-2">
-        <h2 className="text-2xl font-black text-white capitalize italic">
-          {format(currentMonth, 'MMMM yyyy', { locale: it })}
-        </h2>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between mb-10 px-2 relative z-10">
+        <div className="space-y-1">
+          <h2 className="text-3xl font-black text-foreground capitalize italic tracking-tighter uppercase">
+            {format(currentMonth, 'MMMM', { locale: it })}
+          </h2>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.4em] opacity-40">
+            Year of {format(currentMonth, 'yyyy')}
+          </p>
+        </div>
+        
+        <div className="flex gap-3">
           <button 
             onClick={prevMonth}
-            className="p-2 hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-white"
+            className="w-11 h-11 glass-card rounded-xl flex items-center justify-center transition-all text-muted-foreground hover:text-primary hover:bg-white/5"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
           <button 
             onClick={nextMonth}
-            className="p-2 hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-white"
+            className="w-11 h-11 glass-card rounded-xl flex items-center justify-center transition-all text-muted-foreground hover:text-primary hover:bg-white/5"
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
       </div>
 
       {/* Weekdays */}
-      <div className="grid grid-cols-7 mb-4">
+      <div className="grid grid-cols-7 mb-6 relative z-10">
         {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(day => (
-          <div key={day} className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 py-2">
+          <div key={day} className="text-center text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-30 py-2">
             {day}
           </div>
         ))}
       </div>
 
       {/* Days Grid */}
-      <div className="grid grid-cols-7 gap-1 sm:gap-2">
-        {calendarDays.map((day, idx) => {
-          const { sessions: daySessions, measurements: dayMeasurements, appointments: dayAppointments } = getEventsForDay(day);
-          const isCurrentMonth = format(day, 'M') === format(currentMonth, 'M');
-          const today = isToday(day);
+      <div className="grid grid-cols-7 gap-2 relative z-10">
+        <AnimatePresence mode="popLayout">
+          {calendarDays.map((day, idx) => {
+            const { sessions: daySessions, measurements: dayMeasurements, appointments: dayAppointments } = getEventsForDay(day);
+            const isCurrentMonth = format(day, 'M') === format(currentMonth, 'M');
+            const today = isToday(day);
 
-          return (
-            <button
-              key={idx}
-              onClick={() => setSelectedDate(day)}
-              className={`
-                relative aspect-square rounded-2xl flex flex-col items-center justify-center transition-all p-1
-                ${isCurrentMonth ? 'text-white' : 'text-slate-600 opacity-30'}
-                ${today ? 'bg-primary-500/10 border border-primary-500/20' : 'hover:bg-white/5'}
-                active:scale-95
-              `}
-            >
-              <span className={`text-sm font-bold ${today ? 'text-primary-400' : ''}`}>
-                {format(day, 'd')}
-              </span>
-              
-              {/* Event Indicators */}
-              <div className="flex gap-0.5 mt-1">
-                {daySessions.length > 0 && (
-                  <div className="w-1 h-1 rounded-full bg-primary-500" />
+            return (
+              <motion.button
+                key={day.toISOString()}
+                layout
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.2, delay: idx * 0.005 }}
+                onClick={() => setSelectedDate(day)}
+                className={clsx(
+                  "relative aspect-square rounded-[1.5rem] flex flex-col items-center justify-center transition-all p-2 group overflow-hidden",
+                  isCurrentMonth ? "text-foreground" : "text-muted-foreground opacity-10 pointer-events-none",
+                  today 
+                    ? "bg-primary text-white shadow-xl shadow-primary/20 scale-105 z-20" 
+                    : "bg-background/40 hover:bg-white/5 border border-white/[0.03] hover:border-white/10"
                 )}
-                {dayAppointments.length > 0 && (
-                  <div className="w-1 h-1 rounded-full bg-emerald-500" />
+              >
+                {today && (
+                  <motion.div 
+                    layoutId="todayGlow"
+                    className="absolute inset-0 bg-primary/20 blur-xl -z-10"
+                  />
                 )}
-                {dayMeasurements.length > 0 && (
-                  <div className="w-1 h-1 rounded-full bg-amber-500" />
+                
+                <span className={clsx(
+                  "text-base font-black italic",
+                  today ? "text-white" : "text-foreground"
+                )}>
+                  {format(day, 'd')}
+                </span>
+                
+                {/* Event Indicators */}
+                <div className="flex gap-1 mt-2">
+                  {daySessions.length > 0 && (
+                    <div className={clsx("w-1.5 h-1.5 rounded-full shadow-sm", today ? "bg-white" : "bg-primary")} />
+                  )}
+                  {dayAppointments.length > 0 && (
+                    <div className={clsx("w-1.5 h-1.5 rounded-full shadow-sm", today ? "bg-white/80" : "bg-emerald-500")} />
+                  )}
+                  {dayMeasurements.length > 0 && (
+                    <div className={clsx("w-1.5 h-1.5 rounded-full shadow-sm", today ? "bg-white/60" : "bg-amber-500")} />
+                  )}
+                </div>
+
+                {/* Hover decoration */}
+                {!today && isCurrentMonth && (
+                  <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 )}
-              </div>
-            </button>
-          );
-        })}
+              </motion.button>
+            );
+          })}
+        </AnimatePresence>
       </div>
 
       {/* Selected Day Detail Modal */}
@@ -134,6 +169,7 @@ export default function Calendar({ sessions = [], measurements = [], appointment
           measurements={getEventsForDay(selectedDate).measurements}
           appointments={getEventsForDay(selectedDate).appointments}
           onViewSession={onViewSession}
+          onDeleteSession={onDeleteSession}
         />
       )}
     </div>
