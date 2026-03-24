@@ -105,7 +105,7 @@ export default function PlanTemplatesTab() {
                   <div className="flex gap-2">
                     <Link 
                       to={`/coach/templates/edit/${template.id}`}
-                      className="w-10 h-10 glass-card rounded-xl flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-white transition-all"
+                      className="w-10 h-10 glass-interactive rounded-xl flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-white transition-all"
                     >
                       <Pencil className="w-4 h-4" />
                     </Link>
@@ -115,7 +115,7 @@ export default function PlanTemplatesTab() {
                           deleteMutation.mutate(template.id);
                         }
                       }}
-                      className="w-10 h-10 glass-card rounded-xl flex items-center justify-center text-red-500/30 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                      className="w-10 h-10 glass-interactive rounded-xl flex items-center justify-center text-red-500/30 hover:text-red-500 hover:bg-red-500/10 transition-all"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

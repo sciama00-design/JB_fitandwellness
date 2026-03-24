@@ -92,13 +92,13 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
             <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none z-20">
               <button 
                 onClick={(e) => { e.stopPropagation(); prevImage(); }}
-                className="pointer-events-auto w-12 h-12 glass-card rounded-2xl flex items-center justify-center text-white bg-black/20 hover:bg-primary transition-all border-white/10"
+                className="pointer-events-auto w-12 h-12 glass-interactive rounded-2xl flex items-center justify-center text-white bg-black/20 hover:bg-primary transition-all border-white/10"
               >
                 <ChevronLeft className="w-6 h-6" />
               </button>
               <button 
                 onClick={(e) => { e.stopPropagation(); nextImage(); }}
-                className="pointer-events-auto w-12 h-12 glass-card rounded-2xl flex items-center justify-center text-white bg-black/20 hover:bg-primary transition-all border-white/10"
+                className="pointer-events-auto w-12 h-12 glass-interactive rounded-2xl flex items-center justify-center text-white bg-black/20 hover:bg-primary transition-all border-white/10"
               >
                 <ChevronRight className="w-6 h-6" />
               </button>
@@ -147,10 +147,10 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
             
             {/* Action Buttons */}
             <div className="flex gap-4">
-              {(exercise.video_url || (exercise.video_urls && exercise.video_urls.length > 0)) && (
+              {(exercise.video_urls && exercise.video_urls.length > 0) && (
                 <button 
                   onClick={() => setIsMediaViewerOpen(true)}
-                  className="w-16 h-16 glass-card rounded-[2rem] flex items-center justify-center text-primary hover:bg-primary/20 transition-all border-white/10 group"
+                  className="w-16 h-16 glass-interactive rounded-[2rem] flex items-center justify-center text-primary hover:bg-primary/20 transition-all border-white/10 group"
                   title="Apri Media Viewer"
                 >
                   <Tv className="w-8 h-8 group-hover:scale-110 transition-transform" />
@@ -165,7 +165,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
                       onClose();
                     }
                   }}
-                  className="w-16 h-16 glass-card rounded-[2rem] flex items-center justify-center text-red-500/40 hover:text-red-500 hover:bg-red-500/10 transition-all border-white/10 group"
+                  className="w-16 h-16 glass-interactive rounded-[2rem] flex items-center justify-center text-red-500/40 hover:text-red-500 hover:bg-red-500/10 transition-all border-white/10 group"
                   title="Elimina Esercizio Custom"
                 >
                   <Trash2 className="w-8 h-8 group-hover:scale-110 transition-transform" />
@@ -174,7 +174,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
 
               <button 
                 onClick={onClose}
-                className="w-16 h-16 glass-card rounded-[2rem] flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all border-white/10 group/close"
+                className="w-16 h-16 glass-interactive rounded-[2rem] flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all border-white/10 group/close"
               >
                 <X className="w-8 h-8 group-hover/close:rotate-90 transition-transform duration-500" />
               </button>
@@ -258,7 +258,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
       <MediaViewer 
         isOpen={isMediaViewerOpen}
         onClose={() => setIsMediaViewerOpen(false)}
-        urls={exercise.video_urls || (exercise.video_url ? [exercise.video_url] : [])}
+        urls={exercise.video_urls || []}
         title={exercise.name_it || exercise.name}
       />
     </div>

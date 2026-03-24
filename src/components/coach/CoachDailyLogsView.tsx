@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { dailyLogService, type DailyLog } from '../../services/dailyLogService';
-import { Loader2, Scale, Flame, Droplets, Moon, Calendar } from 'lucide-react';
+import { Loader2, Scale, Flame, Droplets, Moon } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -24,8 +24,8 @@ export default function CoachDailyLogsView({ athleteId }: Props) {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
+      <div className="flex justify-center py-20 grayscale opacity-50">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -36,67 +36,81 @@ export default function CoachDailyLogsView({ athleteId }: Props) {
   const avgKcal = last7Days.reduce((acc, log) => acc + (log.kcal_eaten || 0), 0) / (last7Days.filter(l => l.kcal_eaten).length || 1);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-10 animate-fade-in">
       
       {/* AVERAGES ROW */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="glass p-5 rounded-3xl border border-slate-800/50">
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
-            <Scale className="w-4 h-4 text-emerald-500" /> Media Peso 7gg
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="glass-card group hover:bg-white/[0.02] transition-all duration-300">
+          <p className="text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.2em] mb-3 flex items-center gap-2 group-hover:text-primary transition-colors">
+            <Scale className="w-4 h-4 text-primary" /> Media Peso 7gg
           </p>
-          <div className="flex items-baseline gap-1 mt-1">
-            <span className="text-3xl font-black text-white">{avgWeight ? avgWeight.toFixed(1) : '-'}</span>
-            <span className="text-slate-500 text-sm font-bold">kg</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-black text-foreground italic">{avgWeight ? avgWeight.toFixed(1) : '-'}</span>
+            <span className="text-muted-foreground text-xs font-bold italic">kg</span>
           </div>
         </div>
 
-        <div className="glass p-5 rounded-3xl border border-slate-800/50">
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
-            <Flame className="w-4 h-4 text-orange-500" /> Media Kcal 7gg
+        <div className="glass-card group hover:bg-white/[0.02] transition-all duration-300">
+          <p className="text-[10px] text-muted-foreground/60 font-black uppercase tracking-[0.2em] mb-3 flex items-center gap-2 group-hover:text-brand-vibrant transition-colors">
+            <Flame className="w-4 h-4 text-brand-vibrant" /> Media Kcal 7gg
           </p>
-          <div className="flex items-baseline gap-1 mt-1">
-            <span className="text-3xl font-black text-white">{avgKcal ? Math.round(avgKcal) : '-'}</span>
-            <span className="text-slate-500 text-sm font-bold">kcal</span>
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-black text-foreground italic">{avgKcal ? Math.round(avgKcal) : '-'}</span>
+            <span className="text-muted-foreground text-xs font-bold italic">kcal</span>
           </div>
         </div>
       </div>
 
       {/* DETAIL LIST */}
-      <div>
-         <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-           <Calendar className="w-5 h-5 text-primary-400" /> Ultime 14 Registrazioni
+      <div className="space-y-6">
+         <h3 className="text-2xl font-black text-foreground italic tracking-tight flex items-center gap-4">
+           <div className="w-1.5 h-8 bg-brand-indigo rounded-full shadow-[0_0_15px_rgba(var(--brand-indigo),0.4)]" />
+           Storico Registrazioni
          </h3>
          
          {logs?.length === 0 ? (
-           <div className="bg-slate-950/50 border border-slate-800 border-dashed rounded-3xl py-12 text-center text-slate-500">
-             Nessun check-in giornaliero registrato recentemente.
+           <div className="glass-card border-dashed py-16 text-center text-muted-foreground/50 rounded-xxl font-medium italic">
+             Nessun check-in giornaliero registrato regolarmente.
            </div>
          ) : (
-           <div className="space-y-3">
+           <div className="space-y-4">
              {[...(logs || [])].reverse().map((log: DailyLog) => (
-               <div key={log.id} className="glass p-4 rounded-2xl border border-slate-800/50 flex flex-wrap items-center justify-between gap-4">
+               <div key={log.id} className="glass-card p-6 flex flex-wrap items-center justify-between gap-6 hover:translate-x-1 group transition-all duration-300">
                  
-                 <div className="min-w-32">
-                   <p className="text-xs text-slate-400 font-bold uppercase">{format(new Date(log.date), 'EEEE', { locale: it })}</p>
-                   <p className="text-white font-bold">{format(new Date(log.date), 'dd MMM yyyy', { locale: it })}</p>
+                 <div className="min-w-[140px]">
+                   <p className="text-[9px] text-muted-foreground/40 font-black uppercase tracking-[0.3em] group-hover:text-primary transition-colors">
+                     {format(new Date(log.date), 'EEEE', { locale: it })}
+                   </p>
+                   <p className="text-lg font-black italic text-foreground tracking-tight opacity-90">
+                     {format(new Date(log.date), 'dd MMM yyyy', { locale: it })}
+                   </p>
                  </div>
 
-                 <div className="flex flex-wrap items-center gap-6">
-                   <div className="flex flex-col">
-                     <span className="text-xs text-slate-500 flex items-center gap-1"><Scale className="w-3 h-3"/> Peso</span>
-                     <span className="font-bold text-slate-200">{log.weight_kg ? `${log.weight_kg} kg` : '-'}</span>
+                 <div className="flex flex-wrap items-center gap-10">
+                   <div className="flex flex-col gap-1">
+                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5"><Scale className="w-3 h-3"/> Peso</span>
+                     <div className="flex items-baseline gap-1">
+                        <span className="font-black text-foreground italic">{log.weight_kg || '-'}</span>
+                        <span className="text-[10px] font-bold text-muted-foreground opacity-50 italic">kg</span>
+                     </div>
                    </div>
-                   <div className="flex flex-col">
-                     <span className="text-xs text-slate-500 flex items-center gap-1"><Flame className="w-3 h-3"/> Kcal</span>
-                     <span className="font-bold text-slate-200">{log.kcal_eaten ? `${log.kcal_eaten}` : '-'}</span>
+                   <div className="flex flex-col gap-1">
+                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5"><Flame className="w-3 h-3"/> Kcal</span>
+                     <span className="font-black text-foreground italic">{log.kcal_eaten || '-'}</span>
                    </div>
-                   <div className="flex flex-col">
-                     <span className="text-xs text-slate-500 flex items-center gap-1"><Moon className="w-3 h-3"/> Sonno</span>
-                     <span className="font-bold text-slate-200">{log.sleep_hours ? `${log.sleep_hours} h` : '-'}</span>
+                   <div className="flex flex-col gap-1">
+                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5"><Moon className="w-3 h-3"/> Sonno</span>
+                     <div className="flex items-baseline gap-1">
+                        <span className="font-black text-foreground italic">{log.sleep_hours || '-'}</span>
+                        <span className="text-[10px] font-bold text-muted-foreground opacity-50 italic">h</span>
+                     </div>
                    </div>
-                   <div className="flex flex-col">
-                     <span className="text-xs text-slate-500 flex items-center gap-1"><Droplets className="w-3 h-3"/> Acqua</span>
-                     <span className="font-bold text-slate-200">{log.water_liters ? `${log.water_liters} L` : '-'}</span>
+                   <div className="flex flex-col gap-1">
+                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 flex items-center gap-1.5"><Droplets className="w-3 h-3"/> Acqua</span>
+                     <div className="flex items-baseline gap-1">
+                        <span className="font-black text-foreground italic">{log.water_liters || '-'}</span>
+                        <span className="text-[10px] font-bold text-muted-foreground opacity-50 italic">L</span>
+                     </div>
                    </div>
                  </div>
 

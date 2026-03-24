@@ -9,7 +9,9 @@ import {
   Dumbbell,
   Activity,
   ChevronRight,
-  Search
+  Search,
+  TrendingUp,
+  Timer
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { sessionService } from '../../services/sessionService';
@@ -17,6 +19,28 @@ import { useState } from 'react';
 import WorkoutSessionDetailModal from '../../components/workout/WorkoutSessionDetailModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
+
+/** Group sessions by relative day label */
+function groupByDay(sessions: any[]): { label: string; sessions: any[] }[] {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const groups: Record<string, any[]> = {};
+  const order: string[] = [];
+
+  for (const s of sessions) {
+    const d = new Date(s.started_at);
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    let label: string;
+    if (day.getTime() === today.getTime()) label = 'Oggi';
+    else if (day.getTime() === yesterday.getTime()) label = 'Ieri';
+    else label = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'short' });
+
+    if (!groups[label]) { groups[label] = []; order.push(label); }
+    groups[label].push(s);
+  }
+  return order.map(label => ({ label, sessions: groups[label] }));
+}
 
 export default function CoachDashboard() {
   const { user } = useAuth();
@@ -50,25 +74,22 @@ export default function CoachDashboard() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
         <div className="relative">
-          <Loader2 className="w-12 h-12 animate-spin text-primary" />
-          <div className="absolute inset-0 blur-xl bg-primary/20 animate-pulse"></div>
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <div className="absolute inset-0 blur-xl bg-primary/20 animate-pulse" />
         </div>
-        <p className="text-muted-foreground animate-pulse font-black uppercase tracking-widest text-xs">Sincronizzazione Dashboard...</p>
+        <p className="text-muted-foreground/60 animate-pulse font-semibold uppercase tracking-[0.2em] text-[10px]">Sincronizzazione Dashboard...</p>
       </div>
     );
   }
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
+    visible: { opacity: 1, transition: { staggerChildren: 0.08 } }
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
+    hidden: { opacity: 0, y: 16 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
   };
 
   const filteredLogs = latestLogs?.filter((session: any) => 
@@ -76,28 +97,36 @@ export default function CoachDashboard() {
     (session.workout_plans?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const dayGroups = groupByDay(filteredLogs || []);
+
+  const stats = [
+    { label: 'Atleti', val: athletes?.length || 0, icon: Users, gradient: 'from-primary/20 to-primary/5', iconColor: 'text-primary' },
+    { label: 'Sessioni 7gg', val: latestLogs?.length || 0, icon: TrendingUp, gradient: 'from-blue-500/20 to-blue-500/5', iconColor: 'text-blue-400' },
+    { label: 'Esercizi', val: '150+', icon: Dumbbell, gradient: 'from-emerald-500/20 to-emerald-500/5', iconColor: 'text-emerald-400' },
+  ];
+
   return (
-    <div className="space-y-12">
+    <div className="space-y-10 max-w-7xl mx-auto">
       {/* Header */}
       <motion.div 
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-1"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="flex flex-col sm:flex-row sm:items-end justify-between gap-6"
       >
         <div>
-          <h1 className="text-5xl font-black tracking-tighter bg-gradient-to-r from-white via-primary to-accent bg-clip-text text-transparent italic leading-[0.8]">
-            Coach Panel
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
+            Dashboard
           </h1>
-          <p className="text-muted-foreground mt-4 font-black tracking-[0.3em] uppercase text-[10px] opacity-50">Operation Master Protocol</p>
+          <p className="text-muted-foreground/40 mt-1.5 font-semibold tracking-wide text-xs">Panoramica attività e performance</p>
         </div>
 
         <Link 
           to="/coach/plans/new" 
-          className="btn btn-primary h-14 px-8 rounded-2xl shadow-[0_20px_50px_rgba(6,182,212,0.3)] flex items-center gap-3 group overflow-hidden relative"
+          className="btn btn-primary h-12 px-6 rounded-xl shadow-lg shadow-primary/20 flex items-center gap-2.5 group"
         >
-          <div className="absolute inset-0 bg-white/20 -translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
-          <Plus className="w-5 h-5 relative z-10" />
-          <span className="font-black uppercase tracking-widest text-[10px] relative z-10 italic">Nuovo Piano</span>
+          <Plus className="w-4 h-4" />
+          <span className="font-bold text-[11px] tracking-wide">Nuovo Piano</span>
         </Link>
       </motion.div>
 
@@ -106,129 +135,137 @@ export default function CoachDashboard() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-4"
       >
-        {[
-          { label: 'Totale Atleti', val: athletes?.length || 0, icon: Users, color: 'text-primary' },
-          { label: 'Sessioni 7gg', val: latestLogs?.length || 0, icon: Clock, color: 'text-blue-500' },
-          { label: 'Esercizi Totali', val: '150+', icon: Dumbbell, color: 'text-emerald-500' },
-        ].map((stat, i) => (
+        {stats.map((stat, i) => (
           <motion.div 
             key={i}
             variants={itemVariants}
-            className="glass-card p-6 sm:p-8 rounded-2xl sm:rounded-[2.5rem] relative overflow-hidden group"
+            className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-card/30 backdrop-blur-xl p-5 group hover:border-white/[0.1] transition-all duration-300"
           >
-            <div className="absolute top-0 right-0 p-4 sm:p-6 opacity-10 group-hover:opacity-30 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500">
-              <stat.icon className={clsx("w-14 h-14 sm:w-20 sm:h-20", stat.color)} />
-            </div>
-            <div className="flex items-center gap-4 sm:gap-6 relative z-10">
-              <div className={clsx("w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center border border-white/5 bg-white/5 group-hover:bg-white/10 transition-all shadow-inner", stat.color)}>
-                <stat.icon className="w-5 h-5 sm:w-7 sm:h-7" />
+            {/* Background gradient blob */}
+            <div className={clsx("absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br opacity-60 blur-2xl group-hover:opacity-100 transition-opacity duration-500", stat.gradient)} />
+            
+            <div className="relative z-10 flex items-center gap-4">
+              <div className={clsx("w-11 h-11 rounded-xl flex items-center justify-center bg-white/[0.04] border border-white/[0.06] group-hover:scale-105 transition-transform", stat.iconColor)}>
+                <stat.icon className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-muted-foreground text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] opacity-50">{stat.label}</p>
-                <h3 className="text-2xl sm:text-4xl font-black italic tracking-tighter mt-1">{stat.val}</h3>
+                <p className="text-muted-foreground/50 text-[10px] font-semibold uppercase tracking-[0.15em]">{stat.label}</p>
+                <h3 className="text-2xl font-black tracking-tight mt-0.5 text-foreground">{stat.val}</h3>
               </div>
             </div>
           </motion.div>
         ))}
       </motion.div>
       
-      {/* Search & Actions */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between px-1">
-        <h2 className="text-2xl font-black text-foreground italic flex items-center gap-4">
-          <Activity className="text-primary w-8 h-8" />
-          Attività Recente
-        </h2>
-        <div className="relative w-full md:w-96 group">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+      {/* Search & Activity Header */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary/[0.08] flex items-center justify-center">
+            <Activity className="text-primary w-4 h-4" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground tracking-tight">Attività Recente</h2>
+        </div>
+        <div className="relative w-full sm:w-80 group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
           <input 
             type="text" 
-            placeholder="CERCA ATLETA O SCHEDA..."
+            placeholder="Cerca atleta o scheda..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="input-minimal pl-14 h-14 font-black text-[10px] tracking-[0.2em] italic"
+            className="w-full pl-11 pr-4 h-11 bg-white/[0.03] border border-white/[0.06] rounded-xl text-sm font-medium text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all"
           />
         </div>
       </div>
 
-      {/* Latest Logs List */}
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-        className="space-y-4"
-      >
+      {/* Day-Grouped Activity Feed */}
+      <div className="space-y-8">
         <AnimatePresence mode="popLayout">
-          {filteredLogs && filteredLogs.length > 0 ? (
-            filteredLogs.map((session: any) => (
+          {dayGroups.length > 0 ? (
+            dayGroups.map((group) => (
               <motion.div 
-                key={session.id} 
-                layout
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="glass-card group hover:bg-white/5 transition-all p-5 rounded-[1.8rem] border-white/5 hover:border-primary/20"
+                key={group.label}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-3"
               >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 bg-gradient-to-br from-primary to-emerald-400 rounded-2xl flex items-center justify-center font-black text-white text-xs shadow-lg shadow-primary/20 border border-white/10 uppercase italic">
-                      {session.profiles?.first_name?.[0]}{session.profiles?.last_name?.[0]}
-                    </div>
-                    <div>
-                      <h4 className="font-black text-lg text-foreground italic tracking-tight leading-none">
-                        {session.profiles?.first_name} {session.profiles?.last_name}
-                      </h4>
-                      <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
-                        <Dumbbell className="w-3 h-3 text-primary/60" />
-                        {session.workout_plans?.name || 'Sessione Personalizzata'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between md:justify-end gap-8 border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
-                    <div className="text-left md:text-right">
-                      <p className="text-xs text-foreground font-black italic tracking-wide">
-                        {new Date(session.started_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
-                      </p>
-                      <p className="text-[9px] text-muted-foreground font-black uppercase tracking-widest mt-1 opacity-60">
-                        {Math.floor(session.duration_seconds / 60)} min totali
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                       <button 
-                        onClick={() => setSelectedSessionId(session.id)}
-                        className="btn h-12 px-5 bg-secondary/50 hover:bg-secondary text-foreground rounded-xl font-black text-[10px] tracking-widest uppercase border border-border transition-all hover:scale-105 active:scale-95"
-                      >
-                        Analisi
-                      </button>
-                      <Link 
-                        to={`/coach/athletes/${session.athlete_id}`}
-                        className="w-12 h-12 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-xl flex items-center justify-center transition-all shadow-sm border border-primary/20 active:scale-95"
-                        title="Vedi Atleta"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </Link>
-                    </div>
-                  </div>
+                {/* Day label */}
+                <div className="flex items-center gap-3 px-1">
+                  <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-[0.2em] first-letter:capitalize">{group.label}</span>
+                  <div className="flex-1 h-px bg-white/[0.04]" />
+                  <span className="text-[10px] font-semibold text-muted-foreground/30">{group.sessions.length} sessioni</span>
                 </div>
+
+                {group.sessions.map((session: any) => (
+                  <motion.div 
+                    key={session.id} 
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.97 }}
+                    className="group rounded-xl border border-white/[0.05] bg-card/20 hover:bg-card/40 hover:border-white/[0.1] transition-all duration-300 p-4 sm:p-5"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        {/* Avatar */}
+                        <div className="w-11 h-11 bg-gradient-to-br from-primary/80 to-accent/60 rounded-xl flex items-center justify-center font-black text-white text-[11px] shadow-md shadow-primary/15 shrink-0">
+                          {session.profiles?.first_name?.[0]}{session.profiles?.last_name?.[0]}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-[15px] text-foreground tracking-tight leading-none">
+                            {session.profiles?.first_name} {session.profiles?.last_name}
+                          </h4>
+                          <p className="text-[11px] text-muted-foreground/50 font-medium mt-1.5 flex items-center gap-1.5">
+                            <Dumbbell className="w-3 h-3 text-primary/50" />
+                            {session.workout_plans?.name || 'Sessione Personalizzata'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6">
+                        {/* Duration badge */}
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+                          <Timer className="w-3 h-3 text-muted-foreground/40" />
+                          <span className="text-[11px] font-semibold text-muted-foreground/60">
+                            {Math.floor(session.duration_seconds / 60)} min
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => setSelectedSessionId(session.id)}
+                            className="h-9 px-4 bg-white/[0.04] hover:bg-white/[0.08] text-foreground/80 rounded-lg font-semibold text-[11px] tracking-wide border border-white/[0.06] transition-all hover:border-white/[0.1] active:scale-95"
+                          >
+                            Analisi
+                          </button>
+                          <Link 
+                            to={`/coach/athletes/${session.athlete_id}`}
+                            className="w-9 h-9 bg-primary/[0.08] hover:bg-primary text-primary hover:text-white rounded-lg flex items-center justify-center transition-all border border-primary/15 active:scale-95"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
               </motion.div>
             ))
           ) : (
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="glass-card p-16 text-center border-dashed border-2 border-border/40 rounded-[2.5rem]"
+              className="rounded-2xl border-2 border-dashed border-white/[0.06] p-16 text-center"
             >
-              <div className="w-16 h-16 bg-muted/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                <Search className="w-8 h-8 text-muted-foreground opacity-20" />
+              <div className="w-14 h-14 bg-white/[0.03] rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Search className="w-6 h-6 text-muted-foreground/20" />
               </div>
-              <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-xs opacity-50">Nessun allenamento recente trovato.</p>
+              <p className="text-muted-foreground/40 font-semibold text-sm">Nessun allenamento recente trovato</p>
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
 
       {selectedSessionId && (
         <WorkoutSessionDetailModal

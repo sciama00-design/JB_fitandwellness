@@ -147,7 +147,7 @@ export default function CoachCalendar() {
                       onClick={() => {
                         if(confirm('Eliminare questo appuntamento?')) deleteMutation.mutate(apt.id);
                       }}
-                      className="w-8 h-8 glass-card rounded-lg flex items-center justify-center text-red-500/30 hover:text-red-500 bg-white/5 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                      className="w-8 h-8 glass-interactive rounded-lg flex items-center justify-center text-red-500/30 hover:text-red-500 bg-white/5 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100 shrink-0"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

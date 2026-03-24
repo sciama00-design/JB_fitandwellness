@@ -21,5 +21,15 @@ export const athleteService = {
 
     if (error) throw error;
     return data;
+  },
+
+  async updateFocusObjectives(id: string, focusObjectives: string) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ focus_objectives: focusObjectives })
+      .eq('id', id);
+
+    if (error) throw error;
+    return data;
   }
 };

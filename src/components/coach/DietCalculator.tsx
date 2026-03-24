@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { calculateDietMetrics, dietService, type ActivityLevel, type Gender } from '../../services/dietService';
+import { geminiService } from '../../services/geminiService';
 import {
   Flame,
   Activity,
@@ -10,25 +11,35 @@ import {
   Scale,
   Ruler,
   TrendingDown,
+  TrendingUp,
   ChevronDown,
-  RefreshCw,
-  Leaf,
   Save,
   CheckCircle2,
   Loader2,
-  Brain
+  Brain,
+  Sparkles,
+  MessageSquare,
+  Send,
+  X,
+  FileText,
+  ArrowRight,
+  AlertTriangle,
+  Ban,
+  Heart
 } from 'lucide-react';
-import { DIET_TEMPLATES } from '../../data/dietTemplates';
 import { useAuth } from '../../lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
 
 interface DietCalculatorProps {
   athleteId?: string;
   initialData?: any;
+  athleteProfile?: any;
+  measurements?: any[];
 }
 
-export default function DietCalculator({ athleteId, initialData }: DietCalculatorProps) {
+export default function DietCalculator({ athleteId, initialData, athleteProfile, measurements }: DietCalculatorProps) {
   const { user } = useAuth();
   const [weight, setWeight] = useState<number>(initialData?.weight || 70);
   const [height, setHeight] = useState<number>(initialData?.height || 170);
@@ -40,7 +51,12 @@ export default function DietCalculator({ athleteId, initialData }: DietCalculato
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const [swaps, setSwaps] = useState<Record<string, { type: 'original' | 'normal' | 'vegan', swapIndex: number }>>(initialData?.selections || {});
+  // AI Directives state
+  const [isStructuring, setIsStructuring] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const [isChatting, setIsChatting] = useState(false);
+  const [showRawEditor, setShowRawEditor] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -50,7 +66,6 @@ export default function DietCalculator({ athleteId, initialData }: DietCalculato
       setGender(initialData.gender || 'M');
       setActivityLevel(initialData.activityLevel || 'lightly_active');
       setDeficit(initialData.deficit || 500);
-      setSwaps(initialData.selections || {});
       setAiGuidelines(initialData.ai_guidelines || '');
     }
   }, [initialData]);
@@ -67,8 +82,8 @@ export default function DietCalculator({ athleteId, initialData }: DietCalculato
         target_carbs: Math.round(results?.macros.carbs || 0),
         target_fats: Math.round(results?.macros.fat || 0),
         ai_guidelines: aiGuidelines,
-        template_id: DIET_TEMPLATES[0].id, 
-        selections: swaps
+        template_id: '4_pasti',
+        selections: {}
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -92,6 +107,59 @@ export default function DietCalculator({ athleteId, initialData }: DietCalculato
     }
     return null;
   }, [weight, height, age, gender, activityLevel, deficit]);
+
+  const handleStructureWithAI = async () => {
+    if (!results) return;
+    setIsStructuring(true);
+    try {
+      const structured = await geminiService.structureNutritionalDirectives(aiGuidelines, {
+        weight,
+        targetKcal: results.targetKcal,
+        macros: results.macros,
+        preferences: athleteProfile?.dietary_preferences,
+        intolerances: athleteProfile?.intolerances,
+        dislikedFoods: athleteProfile?.disliked_foods
+      });
+      if (structured) {
+        setAiGuidelines(structured);
+      }
+    } catch (error) {
+      console.error("Error structuring directives:", error);
+    } finally {
+      setIsStructuring(false);
+    }
+  };
+
+  const handleChatSend = async () => {
+    if (!chatMessage.trim() || !results) return;
+    setIsChatting(true);
+    try {
+      const updated = await geminiService.chatDietDirectives(aiGuidelines, chatMessage, {
+        weight,
+        targetKcal: results.targetKcal,
+        macros: results.macros
+      });
+      if (updated) {
+        setAiGuidelines(updated);
+        setChatMessage('');
+      }
+    } catch (error) {
+      console.error("Error in chat:", error);
+    } finally {
+      setIsChatting(false);
+    }
+  };
+
+  // Derived data
+  const hydrationMl = Math.round(weight * 33);
+  const trainingDayKcal = results ? Math.round(results.targetKcal) : 0;
+  const restDayKcal = results ? Math.round(results.targetKcal - 200) : 0;
+
+  const latestMeasurement = measurements && measurements.length > 0 ? measurements[0] : null;
+  const previousMeasurement = measurements && measurements.length > 1 ? measurements[1] : null;
+  const weightTrend = latestMeasurement && previousMeasurement
+    ? (latestMeasurement.weight || 0) - (previousMeasurement.weight || 0)
+    : 0;
 
   const activityOptions: { value: ActivityLevel; label: string; desc: string }[] = [
     { value: 'sedentary', label: 'Sedentario', desc: 'Poco o nessun esercizio' },
@@ -259,19 +327,6 @@ export default function DietCalculator({ athleteId, initialData }: DietCalculato
                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-emerald-500 w-5 h-5 pointer-events-none opacity-40" />
                  </div>
               </div>
-
-              <div className="pt-8 border-t border-white/5 space-y-4">
-                 <label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary ml-1 flex items-center gap-3">
-                   <Brain className="w-4 h-4" />
-                   Istruzioni Strategiche IA
-                 </label>
-                 <textarea
-                   value={aiGuidelines}
-                   onChange={(e) => setAiGuidelines(e.target.value)}
-                   placeholder="Es. Priorità al timing proteico pre-nanna, evitare eccipienti pro-infiammatori..."
-                   className="w-full bg-background/40 border border-white/5 text-foreground rounded-2xl px-6 py-4 outline-none focus:border-primary/40 focus:bg-background/60 transition-all font-medium italic text-sm shadow-inner min-h-[120px] resize-none"
-                 />
-              </div>
             </div>
           </div>
         </div>
@@ -404,6 +459,7 @@ export default function DietCalculator({ athleteId, initialData }: DietCalculato
                   </div>
                 </div>
                 
+                {/* SECONDARY METRICS */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                    <div className="glass-card p-6 rounded-[2rem] border-white/5 flex items-center justify-between bg-background/20 group">
                      <div className="text-muted-foreground font-black uppercase tracking-widest text-[10px] opacity-40 group-hover:opacity-80 transition-opacity">BMR (Basale)</div>
@@ -421,114 +477,225 @@ export default function DietCalculator({ athleteId, initialData }: DietCalculato
                    </div>
                 </div>
 
-                {/* DIET PLAN RENDERER */}
-                <div className="glass-card p-10 rounded-[4rem] border-white/5 shadow-2xl space-y-10 bg-secondary/5 mt-10">
-                   <div className="flex items-center gap-4 relative z-10">
-                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
-                       <Activity className="w-5 h-5 text-primary" />
-                     </div>
-                     <h3 className="text-xl font-black text-foreground italic uppercase tracking-tight">Timeline Nutrizionale Daily</h3>
-                   </div>
-
-                  <div className="grid gap-10">
-                    {DIET_TEMPLATES[0].meals.map((meal, mealIndex) => (
-                      <div key={mealIndex} className="space-y-6 relative">
-                        <div className="flex items-end justify-between px-2">
-                           <div className="space-y-1">
-                             <span className="text-[9px] font-black uppercase tracking-[0.4em] text-primary/40 block">Pasto {mealIndex + 1}</span>
-                             <h4 className="text-2xl font-black text-foreground italic uppercase tracking-tighter">{meal.name}</h4>
-                           </div>
-                           <span className="px-4 py-1.5 bg-background/40 backdrop-blur-md rounded-xl text-[10px] font-black text-muted-foreground uppercase tracking-widest border border-white/5 opacity-40 italic shadow-lg">
-                             Allocazione: {Math.round(results.targetKcal * (meal.name.toLowerCase() === 'pranzo' ? 0.35 : meal.name.toLowerCase() === 'cena' ? 0.30 : meal.name.toLowerCase() === 'colazione' ? 0.25 : 0.10))} KCAL
-                           </span>
-                        </div>
-                        
-                        <div className="grid gap-4">
-                          {meal.foods.map((food, foodIndex) => {
-                            const swapKey = `${meal.name}-${foodIndex}`;
-                            const currentSwap = swaps[swapKey] || { type: 'original', swapIndex: 0 };
-                            
-                            let displayFoodName = food.name;
-                            let displayBaseQty = food.baseQty;
-                            let isVegan = false;
-
-                            if (currentSwap.type === 'normal') {
-                              const option = food.normalSwaps[currentSwap.swapIndex];
-                              if (option) {
-                                displayFoodName = option.name;
-                                displayBaseQty = option.baseQty;
-                              }
-                            } else if (currentSwap.type === 'vegan') {
-                              const option = food.veganSwaps[currentSwap.swapIndex];
-                              if (option) {
-                                displayFoodName = option.name;
-                                displayBaseQty = option.baseQty;
-                                isVegan = true;
-                              }
-                            }
-
-                            const dynamicQty = Math.round((displayBaseQty * (results.targetKcal / 1911)) / 5) * 5;
-
-                            return (
-                              <div key={foodIndex} className="glass-card p-6 rounded-[2.5rem] border-white/[0.03] flex flex-col lg:flex-row lg:items-center justify-between gap-6 transition-all hover:border-white/10 bg-background/20 group">
-                                <div className="flex-1 flex items-center gap-6">
-                                  <div className="w-14 h-14 bg-background/80 rounded-2xl flex items-center justify-center text-primary border border-white/5 shadow-inner shrink-0 group-hover:scale-105 transition-transform">
-                                    <span className="text-xl font-black italic">{dynamicQty}<span className="text-[10px] uppercase font-black not-italic opacity-40 ml-0.5">G</span></span>
-                                  </div>
-                                  <div className="space-y-0.5">
-                                    <div className="flex items-center gap-3">
-                                      <h5 className={clsx(
-                                        "text-lg font-black italic uppercase tracking-tight transition-colors",
-                                        isVegan ? 'text-emerald-500' : 'text-foreground group-hover:text-primary'
-                                      )}>
-                                        {displayFoodName}
-                                      </h5>
-                                      {isVegan && <Leaf className="w-3.5 h-3.5 text-emerald-500/40" />}
-                                    </div>
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-30">Pura densità calorica ponderata</p>
-                                  </div>
-                                </div>
-                                
-                                {(food.normalSwaps.length > 0 || food.veganSwaps.length > 0) && (
-                                  <div className="lg:w-72 shrink-0">
-                                    <div className="relative group/select">
-                                      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-primary opacity-40">
-                                        <RefreshCw className="w-4 h-4 group-hover/select:rotate-180 transition-transform duration-700" />
-                                      </div>
-                                      <select
-                                        value={`${currentSwap.type}-${currentSwap.swapIndex}`}
-                                        onChange={(e) => {
-                                          const [type, index] = e.target.value.split('-');
-                                          setSwaps((prev: Record<string, { type: 'original' | 'normal' | 'vegan', swapIndex: number }>) => ({
-                                            ...prev,
-                                            [swapKey]: { type: type as any, swapIndex: Number(index) }
-                                          }));
-                                        }}
-                                        className="w-full bg-background/40 border border-white/5 text-[10px] font-black uppercase tracking-widest text-foreground rounded-xl pl-12 pr-10 py-3.5 appearance-none outline-none focus:border-primary/40 transition-all cursor-pointer shadow-inner"
-                                      >
-                                        <option value="original-0" className="bg-background"> ORIG: {food.name.toUpperCase()}</option>
-                                        {food.normalSwaps.length > 0 && <optgroup label="STRATEGIC OPTIONS" className="bg-background">
-                                          {food.normalSwaps.map((sw, idx) => (
-                                            <option key={`normal-${idx}`} value={`normal-${idx}`} className="bg-background"> {sw.name.toUpperCase()}</option>
-                                          ))}
-                                        </optgroup>}
-                                        {food.veganSwaps.length > 0 && <optgroup label="PLANT-BASED HUB 🌿" className="bg-background">
-                                          {food.veganSwaps.map((sw, idx) => (
-                                            <option key={`vegan-${idx}`} value={`vegan-${idx}`} className="bg-background"> 🌿 {sw.name.toUpperCase()}</option>
-                                          ))}
-                                        </optgroup>}
-                                      </select>
-                                      <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-primary w-4 h-4 pointer-events-none opacity-40" />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                {/* DATA CARDS ROW */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Hydration */}
+                  <div className="glass-card p-6 rounded-[2rem] border-white/5 bg-cyan-500/5 border-cyan-500/10 flex flex-col items-center text-center group hover:bg-cyan-500/10 transition-all">
+                    <Droplets className="w-6 h-6 text-cyan-400 mb-3 group-hover:scale-110 transition-transform" />
+                    <span className="text-2xl font-black text-foreground italic tracking-tight leading-none">
+                      {(hydrationMl / 1000).toFixed(1)}<span className="text-[10px] uppercase font-black not-italic opacity-40 ml-1">L</span>
+                    </span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-400/60 mt-2">Idratazione</span>
+                    <span className="text-[8px] font-bold text-muted-foreground opacity-30 mt-1">{hydrationMl} ml/day</span>
                   </div>
+
+                  {/* Caloric Cycling */}
+                  <div className="glass-card p-6 rounded-[2rem] border-white/5 bg-amber-500/5 border-amber-500/10 flex flex-col items-center text-center group hover:bg-amber-500/10 transition-all">
+                    <Activity className="w-6 h-6 text-amber-400 mb-3 group-hover:scale-110 transition-transform" />
+                    <div className="flex items-center gap-2">
+                      <div className="text-center">
+                        <span className="text-lg font-black text-foreground italic tracking-tight leading-none">{trainingDayKcal}</span>
+                        <span className="block text-[7px] font-black uppercase text-amber-400/60 mt-0.5">Train</span>
+                      </div>
+                      <ArrowRight className="w-3 h-3 text-muted-foreground opacity-20" />
+                      <div className="text-center">
+                        <span className="text-lg font-black text-foreground italic tracking-tight leading-none">{restDayKcal}</span>
+                        <span className="block text-[7px] font-black uppercase text-amber-400/60 mt-0.5">Rest</span>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-400/60 mt-2">Ciclizzazione</span>
+                  </div>
+
+                  {/* Progress Snapshot */}
+                  <div className="glass-card p-6 rounded-[2rem] border-white/5 bg-emerald-500/5 border-emerald-500/10 flex flex-col items-center text-center group hover:bg-emerald-500/10 transition-all">
+                    <Scale className="w-6 h-6 text-emerald-400 mb-3 group-hover:scale-110 transition-transform" />
+                    {latestMeasurement ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl font-black text-foreground italic tracking-tight leading-none">
+                            {latestMeasurement.weight || '—'}
+                          </span>
+                          {weightTrend !== 0 && (
+                            <span className={clsx("text-[10px] font-black", weightTrend < 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                              {weightTrend < 0 ? <TrendingDown className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400/60 mt-2">Peso Attuale</span>
+                        {latestMeasurement.body_fat_percentage && (
+                          <span className="text-[8px] font-bold text-muted-foreground opacity-30 mt-1">BF: {latestMeasurement.body_fat_percentage}%</span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-lg font-black text-muted-foreground italic opacity-30">—</span>
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400/60 mt-2">No Data</span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Athlete Profile Summary */}
+                  <div className="glass-card p-6 rounded-[2rem] border-white/5 bg-rose-500/5 border-rose-500/10 flex flex-col items-center text-center group hover:bg-rose-500/10 transition-all">
+                    <Heart className="w-6 h-6 text-rose-400 mb-3 group-hover:scale-110 transition-transform" />
+                    {athleteProfile?.intolerances?.length > 0 || athleteProfile?.disliked_foods?.length > 0 ? (
+                      <>
+                        <div className="space-y-1.5 max-h-16 overflow-hidden">
+                          {athleteProfile.intolerances?.slice(0, 2).map((item: string, i: number) => (
+                            <span key={`int-${i}`} className="flex items-center justify-center gap-1 text-[9px] font-black text-rose-400 uppercase tracking-widest">
+                              <AlertTriangle className="w-2.5 h-2.5" /> {item}
+                            </span>
+                          ))}
+                          {athleteProfile.disliked_foods?.slice(0, 2).map((item: string, i: number) => (
+                            <span key={`dis-${i}`} className="flex items-center justify-center gap-1 text-[9px] font-bold text-muted-foreground uppercase tracking-widest opacity-50">
+                              <Ban className="w-2.5 h-2.5" /> {item}
+                            </span>
+                          ))}
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-rose-400/60 mt-2">Restrizioni</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-lg font-black text-muted-foreground italic opacity-30">✓</span>
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-rose-400/60 mt-2">Nessuna</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* NUTRITIONAL DIRECTIVES */}
+                <div className="glass-card p-10 rounded-[4rem] border-white/5 shadow-2xl space-y-8 bg-secondary/5">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 relative z-10">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                        <FileText className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-foreground italic uppercase tracking-tight">Direttive Nutrizionali</h3>
+                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-30 mt-0.5">Protocollo strutturato IA</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleStructureWithAI}
+                        disabled={isStructuring}
+                        className="h-10 px-5 bg-primary/10 border border-primary/20 text-primary rounded-xl font-black uppercase tracking-widest text-[9px] flex items-center gap-2 hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        {isStructuring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                        Struttura con IA
+                      </button>
+                      <button
+                        onClick={() => setIsChatOpen(!isChatOpen)}
+                        className={clsx(
+                          "h-10 px-5 rounded-xl font-black uppercase tracking-widest text-[9px] flex items-center gap-2 active:scale-95 transition-all",
+                          isChatOpen 
+                            ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+                            : 'glass-interactive text-muted-foreground hover:text-foreground hover:bg-white/5'
+                        )}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Chat IA
+                      </button>
+                      <button
+                        onClick={() => setShowRawEditor(!showRawEditor)}
+                        className={clsx(
+                          "h-10 w-10 rounded-xl flex items-center justify-center active:scale-95 transition-all",
+                          showRawEditor 
+                            ? 'bg-white/10 text-foreground' 
+                            : 'glass-interactive text-muted-foreground hover:text-foreground hover:bg-white/5'
+                        )}
+                        title="Modifica testo raw"
+                      >
+                        <Brain className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* AI Chat Panel */}
+                  <AnimatePresence>
+                    {isChatOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
+                          <div className="flex items-center gap-2 text-[9px] font-black text-primary uppercase tracking-widest">
+                            <MessageSquare className="w-3 h-3" />
+                            Modifica le direttive con AI
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={chatMessage}
+                              onChange={(e) => setChatMessage(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleChatSend()}
+                              placeholder="Es: aggiungi colazione proteica entro le 8..."
+                              className="flex-1 bg-background/60 border border-white/5 text-foreground rounded-xl px-4 py-3 outline-none focus:border-primary/40 transition-all text-sm font-medium placeholder:text-muted-foreground/30"
+                              disabled={isChatting}
+                            />
+                            <button
+                              onClick={handleChatSend}
+                              disabled={isChatting || !chatMessage.trim()}
+                              className="h-[46px] w-[46px] bg-primary text-white rounded-xl flex items-center justify-center shrink-0 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-primary/20"
+                            >
+                              {isChatting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Raw Editor */}
+                  <AnimatePresence>
+                    {showRawEditor && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary ml-1 flex items-center gap-3">
+                              <Brain className="w-4 h-4" />
+                              Editor Raw Markdown
+                            </label>
+                            <button 
+                              onClick={() => setShowRawEditor(false)}
+                              className="w-8 h-8 glass-interactive rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <textarea
+                            value={aiGuidelines}
+                            onChange={(e) => setAiGuidelines(e.target.value)}
+                            placeholder="Es. Priorità al timing proteico pre-nanna, evitare eccipienti pro-infiammatori..."
+                            className="w-full bg-background/40 border border-white/5 text-foreground rounded-2xl px-6 py-4 outline-none focus:border-primary/40 focus:bg-background/60 transition-all font-mono text-sm shadow-inner min-h-[200px] resize-y"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Rendered Markdown */}
+                  {aiGuidelines ? (
+                    <div className="bg-background/30 border border-white/5 rounded-3xl p-8 prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-foreground prose-headings:font-black prose-headings:italic prose-headings:uppercase prose-headings:tracking-tight prose-strong:text-primary prose-ul:list-disc prose-li:my-1 prose-h2:text-base prose-h2:mt-6 prose-h2:mb-3 prose-h3:text-sm relative group">
+                      <ReactMarkdown>{aiGuidelines}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="bg-background/20 border border-dashed border-white/10 rounded-3xl p-12 text-center space-y-4">
+                      <FileText className="w-10 h-10 text-muted-foreground opacity-10 mx-auto" />
+                      <div className="space-y-2">
+                        <p className="text-sm font-black text-foreground italic uppercase tracking-tight opacity-30">Nessuna direttiva</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-20 max-w-xs mx-auto">
+                          Scrivi le indicazioni nutrizionali nel raw editor o usa "Struttura con IA" per generare automaticamente
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ) : (

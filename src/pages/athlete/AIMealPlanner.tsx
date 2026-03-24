@@ -154,7 +154,7 @@ export default function AIMealPlanner() {
         <div className="flex items-center gap-4">
           <button 
             onClick={() => setIsPreferencesOpen(true)}
-            className="h-14 px-6 glass-card rounded-2xl flex items-center gap-3 font-black italic uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all outline-none border-white/5"
+            className="h-14 px-6 glass-interactive rounded-2xl flex items-center gap-3 font-black italic uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all outline-none border-white/5"
           >
             <Settings2 className="w-4 h-4 text-primary" />
             Preferenze
@@ -315,7 +315,7 @@ export default function AIMealPlanner() {
                       generateAIPlanMutation.mutate();
                     }
                   }}
-                  className="w-full h-16 glass-card rounded-2xl border-dashed border-2 border-white/5 hover:border-primary/20 flex items-center justify-center gap-4 text-muted-foreground hover:text-primary transition-all text-[11px] font-black uppercase tracking-widest italic group"
+                  className="w-full h-16 glass-interactive rounded-2xl border-dashed border-2 border-white/5 hover:border-primary/20 flex items-center justify-center gap-4 text-muted-foreground hover:text-primary transition-all text-[11px] font-black uppercase tracking-widest italic group"
                 >
                   <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-all duration-1000" />
                   Ripristina / Rigenera Protocollo Giornaliero

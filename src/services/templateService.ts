@@ -46,6 +46,7 @@ export const templateService = {
     // 2. Insert Exercises
     const exercisesWithTemplateId = exercises.map((ex, index) => ({
       ...ex,
+      group_iterations: ex.group_iterations || 1,
       template_id: newTemplate.id,
       order_index: index,
     }));
@@ -79,6 +80,7 @@ export const templateService = {
     // 3. Insert new exercises
     const exercisesWithTemplateId = exercises.map((ex, index) => ({
       ...ex,
+      group_iterations: ex.group_iterations || 1,
       template_id: templateId,
       order_index: index,
     }));

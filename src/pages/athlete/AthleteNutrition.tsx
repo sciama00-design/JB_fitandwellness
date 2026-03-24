@@ -138,7 +138,7 @@ export default function AthleteNutrition() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setIsPreferencesOpen(true)}
-            className="h-12 px-6 glass-card rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 hover:bg-white/5 active:scale-95 transition-all text-muted-foreground"
+            className="h-12 px-6 glass-interactive rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 hover:bg-white/5 active:scale-95 transition-all text-muted-foreground"
           >
             <Settings2 className="w-4 h-4" />
             Preferenze

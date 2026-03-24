@@ -48,5 +48,15 @@ export const exerciseService = {
       .delete()
       .eq('id', id);
     if (error) throw error;
+  },
+
+  async searchSimilarExercises(embedding: number[], threshold: number = 0.5, limit: number = 10) {
+    const { data, error } = await supabase.rpc('match_exercises', {
+      query_embedding: embedding,
+      match_threshold: threshold,
+      match_count: limit,
+    });
+    if (error) throw error;
+    return data;
   }
 };

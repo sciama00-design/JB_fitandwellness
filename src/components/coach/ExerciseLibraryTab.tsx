@@ -9,7 +9,7 @@ import ExerciseFormModal from './ExerciseFormModal';
 import { useAuth } from '../../lib/auth';
 import type { ExerciseLibrary as ExerciseType } from '../../types/database';
 import { motion, AnimatePresence } from 'framer-motion';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export default function ExerciseLibraryTab() {
   const { user, role } = useAuth();
@@ -117,7 +117,7 @@ export default function ExerciseLibraryTab() {
         </div>
         <button 
           onClick={() => window.location.reload()}
-          className="h-12 px-8 glass-card rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all text-muted-foreground"
+          className="h-12 px-8 glass-interactive rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all text-muted-foreground"
         >
           Riprova Sync
         </button>
@@ -188,7 +188,7 @@ export default function ExerciseLibraryTab() {
           ) : (
             <div className="space-y-12">
               <motion.div 
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-7 gap-6"
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 3xl:grid-cols-8 gap-4 sm:gap-5"
               >
                 <AnimatePresence mode="popLayout">
                   {visibleExercises.map((exercise) => (
@@ -214,7 +214,7 @@ export default function ExerciseLibraryTab() {
                 <div className="flex justify-center pt-8 pb-12">
                   <button
                     onClick={loadMore}
-                    className="h-14 px-12 glass-card rounded-2xl font-black italic uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all text-muted-foreground border-white/10 hover:border-primary/50 group"
+                    className="h-14 px-12 glass-interactive rounded-2xl font-black italic uppercase tracking-widest text-[10px] hover:bg-white/5 transition-all text-muted-foreground border-white/10 hover:border-primary/50 group"
                   >
                     <span className="group-hover:text-primary transition-colors">Carica Altri Esercizi</span>
                     <div className="text-[8px] opacity-40 mt-1 not-italic">

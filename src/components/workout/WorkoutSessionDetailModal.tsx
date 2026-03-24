@@ -100,13 +100,13 @@ export default function WorkoutSessionDetailModal({ sessionId, isOpen, onClose }
         ) : (
           <>
             {/* Header Info Banner */}
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6 p-4 sm:p-6 glass-card rounded-2xl sm:rounded-3xl border-white/5">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-xl">
+            <div className="flex flex-wrap items-center gap-6 p-6 glass-card rounded-xxl border-white/5">
+              <div className="flex items-center gap-4">
+                <div className="p-2.5 bg-primary/10 rounded-xl">
                   <CalendarIcon className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-50">Data</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Data Sessione</span>
                   <span className="text-sm font-black italic text-foreground tracking-tight">
                     {session?.started_at ? formatDate(session.started_at) : '---'}
                   </span>
@@ -115,12 +115,12 @@ export default function WorkoutSessionDetailModal({ sessionId, isOpen, onClose }
               
               <div className="w-px h-8 bg-white/5 hidden md:block"></div>
 
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/10 rounded-xl">
-                  <Clock className="w-4 h-4 text-blue-400" />
+              <div className="flex items-center gap-4">
+                <div className="p-2.5 bg-brand-indigo/10 rounded-xl">
+                  <Clock className="w-4 h-4 text-brand-indigo" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-50">Durata</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Tempo Totale</span>
                   <span className="text-sm font-black italic text-foreground tracking-tight">
                     {formatDuration(session?.duration_seconds)}
                   </span>
@@ -129,105 +129,104 @@ export default function WorkoutSessionDetailModal({ sessionId, isOpen, onClose }
             </div>
 
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="p-6 glass-card rounded-3xl border-white/5 hover:bg-white/5 transition-colors group">
-                <p className="text-[10px] uppercase font-black text-muted-foreground tracking-[0.2em] opacity-50 group-hover:opacity-100 transition-opacity">Esercizi</p>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="p-6 glass-card rounded-xl border-white/5 hover:bg-white/5 transition-all duration-300 group">
+                <p className="text-[10px] uppercase font-black text-muted-foreground/50 tracking-[0.2em] group-hover:text-primary transition-colors">Esercizi</p>
                 <div className="flex items-baseline gap-2 mt-2">
                   <p className="text-3xl font-black text-foreground italic">{exerciseGroups.length}</p>
-                  <Activity className="w-4 h-4 text-primary/40" />
+                  <Activity className="w-5 h-5 text-primary/30 group-hover:text-primary/60 transition-colors" />
                 </div>
               </div>
               
-              <div className="p-6 glass-card rounded-3xl border-white/5 hover:bg-white/5 transition-colors group">
-                <p className="text-[10px] uppercase font-black text-muted-foreground tracking-[0.2em] opacity-50 group-hover:opacity-100 transition-opacity">Set Totali</p>
+              <div className="p-6 glass-card rounded-xl border-white/5 hover:bg-white/5 transition-all duration-300 group">
+                <p className="text-[10px] uppercase font-black text-muted-foreground/50 tracking-[0.2em] group-hover:text-accent transition-colors">Set Totali</p>
                 <div className="flex items-baseline gap-2 mt-2">
                   <p className="text-3xl font-black text-foreground italic">{session?.exercise_logs?.length || 0}</p>
-                  <TrendingUp className="w-4 h-4 text-amber-500/40" />
+                  <TrendingUp className="w-5 h-5 text-accent/30 group-hover:text-accent/60 transition-colors" />
                 </div>
               </div>
 
-              <div className="col-span-2 sm:col-span-1 p-6 glass-card rounded-3xl border-white/5 hover:bg-white/5 transition-colors group border-l-primary/20">
-                <p className="text-[10px] uppercase font-black text-muted-foreground tracking-[0.2em] opacity-50 group-hover:opacity-100 transition-opacity">Note</p>
-                <p className="text-sm font-black text-foreground mt-3 italic truncate">
-                  {session?.notes ? 'Presenti' : 'Nessuna'}
+              <div className="col-span-2 lg:col-span-1 p-6 glass-card rounded-xl border-white/5 hover:bg-white/5 transition-all duration-300 group border-l-primary/20">
+                <p className="text-[10px] uppercase font-black text-muted-foreground/50 tracking-[0.2em] group-hover:text-foreground transition-colors">Note</p>
+                <p className="text-sm font-black text-foreground mt-3 italic truncate opacity-80 group-hover:opacity-100 transition-opacity">
+                  {session?.notes ? 'Feedback disponibile' : 'Nessuna nota'}
                 </p>
               </div>
             </div>
 
             {/* Session Notes */}
             {session?.notes && (
-              <div className="p-8 glass-card border-l-4 border-l-primary rounded-[2rem] bg-primary/5">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-3 flex items-center gap-2">
+              <div className="p-8 glass-card border-l-4 border-l-primary rounded-xxl bg-primary/5 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <MessageSquare className="w-16 h-16 text-primary" />
+                </div>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-4 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
                   Feedback Atleta
                 </h4>
-                <p className="text-foreground leading-relaxed italic font-medium opacity-80">{session.notes}</p>
+                <p className="text-foreground/90 leading-relaxed italic font-medium text-lg relative z-10">"{session.notes}"</p>
               </div>
             )}
 
             {/* Exercise List */}
-            <div className="space-y-6">
+            <div className="space-y-8">
               <h3 className="text-2xl font-black text-foreground italic tracking-tight flex items-center gap-4">
-                <div className="w-1.5 h-8 bg-primary rounded-full" />
-                Dettaglio Esercizi
+                <div className="w-1.5 h-8 bg-primary rounded-full shadow-[0_0_15px_rgba(var(--primary),0.5)]" />
+                Performance Esercizi
               </h3>
 
               <div className="space-y-6">
                 {exerciseGroups.map((group: any) => (
-                  <div key={group.exercise.id} className="glass-card group hover:bg-white/5 transition-all rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-6 lg:p-10 border-white/5">
+                  <div key={group.exercise.id} className="glass-card group hover:bg-white/[0.02] transition-all duration-500 rounded-xxl p-6 lg:p-8 border-white/5">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
                       <div className="flex items-center gap-5">
-                        <div className="w-14 h-14 bg-background/50 rounded-2xl flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors border border-border">
-                          <Dumbbell className="w-7 h-7" />
+                        <div className="w-16 h-16 bg-background rounded-2xl flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:shadow-primary/20 group-hover:shadow-2xl transition-all duration-500 border border-white/5">
+                          <Dumbbell className="w-8 h-8" />
                         </div>
                         <div>
-                          <h4 className="text-2xl font-black text-foreground italic tracking-tight">{group.exercise.name}</h4>
-                          <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mt-2 opacity-60">
-                            Target: {group.exercise.target_sets} serie x {group.exercise.target_reps} reps
-                          </p>
+                          <h4 className="text-2xl font-black text-foreground italic tracking-tight group-hover:text-primary transition-colors">{group.exercise.name}</h4>
+                          <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
+                            <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em]">Target: {group.exercise.target_sets}s × {group.exercise.target_reps}r</span>
+                            {group.exercise.rest_seconds > 0 && <span className="text-[10px] text-primary/60 font-black uppercase tracking-[0.2em]">Rest: {group.exercise.rest_seconds}s</span>}
+                            {group.exercise.group_iterations > 1 && <span className="text-[10px] text-accent/60 font-black uppercase tracking-[0.2em]">{group.exercise.group_iterations} Giri</span>}
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Logs Table */}
-                    <div className="grid grid-cols-1 gap-4">
+                    {/* Logs Grid - Better for Container Queries */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                       {group.logs.sort((a: any, b: any) => a.set_number - b.set_number).map((log: any) => (
-                        <div key={log.id} className="bg-secondary/20 border border-white/5 rounded-2xl p-6 flex flex-wrap items-center justify-between gap-6 hover:bg-secondary/30 transition-colors">
-                          <div className="flex items-center gap-8">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-background/40 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black text-muted-foreground border border-border shadow-inner">
-                              {log.set_number}
+                        <div key={log.id} className="glass-interactive rounded-2xl p-6 flex flex-col gap-4 border-white/5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-8 h-8 rounded-full bg-background flex items-center justify-center text-[10px] font-black text-muted-foreground/50 border border-white/5">
+                                    {log.set_number}
+                                </div>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black text-foreground italic">{log.weight || '-'}</span>
+                                    <span className="text-[10px] font-black text-muted-foreground/60 uppercase">kg</span>
+                                    <span className="mx-2 text-primary font-black opacity-40 italic text-sm">×</span>
+                                    <span className="text-2xl font-black text-foreground italic">{log.reps}</span>
+                                    <span className="text-[10px] font-black text-muted-foreground/60 uppercase">reps</span>
+                                </div>
                             </div>
-                            <div className="flex flex-col">
-                              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-50">Volume</span>
-                              <div className="flex items-baseline gap-1.5">
-                                <span className="text-2xl font-black text-foreground italic">{log.weight || '-'}</span>
-                                <span className="text-xs font-bold text-muted-foreground italic">kg</span>
-                                <span className="mx-2 text-primary font-black opacity-40 italic">×</span>
-                                <span className="text-2xl font-black text-foreground italic">{log.reps}</span>
-                                <span className="text-xs font-bold text-muted-foreground italic">reps</span>
+                            
+                            {log.rpe && (
+                              <div className="flex items-center gap-1.5 px-3 py-1 bg-accent/10 rounded-lg border border-accent/20">
+                                <Star className="w-2.5 h-2.5 text-accent fill-current" />
+                                <span className="text-[9px] font-black italic text-accent uppercase">RPE {log.rpe}</span>
                               </div>
-                            </div>
+                            )}
                           </div>
 
-                          <div className="flex items-center gap-6 sm:gap-10">
-                            {log.rpe && (
-                              <div className="flex flex-col items-center">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-50 mb-2">Sforzo</span>
-                                <div className="flex items-center gap-2 px-4 py-1.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
-                                  <Star className="w-3 h-3 text-amber-400 fill-current" />
-                                  <span className="text-[10px] font-black italic text-amber-400 tracking-widest uppercase">RPE {log.rpe}</span>
-                                </div>
-                              </div>
-                            )}
-                            
-                            {(log.athlete_feedback || log.notes) && (
-                              <div className="max-w-[240px] hidden md:block border-l border-white/5 pl-8 italic">
-                                 <p className="text-[11px] font-bold text-muted-foreground opacity-80 leading-relaxed">
-                                   "{log.athlete_feedback || log.notes}"
-                                 </p>
-                              </div>
-                            )}
-                          </div>
+                          {(log.athlete_feedback || log.notes) && (
+                             <div className="mt-2 pt-4 border-t border-white/5">
+                                <p className="text-[11px] font-medium text-muted-foreground italic leading-relaxed">
+                                  "{log.athlete_feedback || log.notes}"
+                                </p>
+                             </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -236,21 +235,21 @@ export default function WorkoutSessionDetailModal({ sessionId, isOpen, onClose }
               </div>
             </div>
 
-            <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="pt-10 flex flex-col sm:flex-row items-center justify-between gap-6">
               <button 
                 onClick={handleDelete}
                 disabled={deleteMutation.isPending}
-                className="flex items-center gap-3 text-red-500/60 hover:text-red-500 font-black uppercase tracking-widest text-[10px] transition-all disabled:opacity-50 hover:scale-105 active:scale-95 group"
+                className="flex items-center gap-3 text-red-500/40 hover:text-red-500 font-bold uppercase tracking-[0.2em] text-[10px] transition-all disabled:opacity-50 hover:scale-105 active:scale-95 group"
               >
                 {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 group-hover:rotate-12 transition-transform" />}
-                Elimina questa sessione
+                Elimina Sessione
               </button>
               
               <button 
                 onClick={onClose}
-                className="btn bg-secondary/30 hover:bg-secondary/50 text-foreground px-12 h-14 rounded-2xl font-black uppercase tracking-widest text-xs border border-border shadow-sm w-full sm:w-auto active:scale-95 transition-all"
+                className="btn btn-secondary px-12 h-14 rounded-2xl font-black uppercase tracking-[0.2em] text-xs w-full sm:w-auto active:scale-95 shadow-2xl"
               >
-                Chiudi
+                Chiudi Dettaglio
               </button>
             </div>
           </>

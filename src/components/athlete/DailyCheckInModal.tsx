@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useAuth } from '../../lib/auth';
 import { X, Scale, Droplets, Moon, Flame, Loader2, CheckCircle2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -38,7 +39,12 @@ export default function DailyCheckInModal({ isOpen, onClose, existingLog }: Dail
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['daily-log', user?.id] });
       queryClient.invalidateQueries({ queryKey: ['athlete-stats', user?.id] });
+      toast.success('Check-in salvato con successo');
       onClose();
+    },
+    onError: (error: any) => {
+      console.error('Error saving check-in:', error);
+      toast.error('Errore nel salvataggio del check-in');
     }
   });
 

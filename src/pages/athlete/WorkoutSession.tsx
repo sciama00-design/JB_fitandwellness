@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { planService } from '../../services/planService';
@@ -22,7 +22,7 @@ import ExerciseDetailModal from '../../components/ExerciseDetailModal';
 import { exerciseService } from '../../services/exerciseService';
 import type { ExerciseLibrary } from '../../types/database';
 import { MediaViewer } from '../../components/shared/MediaViewer';
-import { parseVideoUrls } from '../../lib/videoUtils';
+// import { parseVideoUrls } from '../../lib/videoUtils'; // Removed unused
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 // import Modal from '../../components/Modal'; // Removed unused
@@ -47,6 +47,7 @@ export default function WorkoutSession() {
   const [isResting, setIsResting] = useState(false);
   const [lastLoggedSet, setLastLoggedSet] = useState<{ exerciseId: string; setIndex: number } | null>(null);
   const [restStartTime, setRestStartTime] = useState<number | null>(null);
+  const [totalRestStarted, setTotalRestStarted] = useState<number>(60);
 
   // Cluster/Rep Timer State
   const [currentSetIndex, setCurrentSetIndex] = useState(0);
@@ -147,7 +148,48 @@ export default function WorkoutSession() {
     return () => clearInterval(interval);
   }, [isResting, restTimeLeft, isPaused]);
 
-  const currentExercise = plan?.exercises?.[currentExerciseIndex];
+  const sessionExercises = useMemo(() => {
+    if (!plan?.exercises) return [];
+    
+    const unrolled: (any & { round?: number; totalRounds?: number; setsInRound?: number; startSetIdx?: number })[] = [];
+    let i = 0;
+    while (i < plan.exercises.length) {
+      const ex = plan.exercises[i];
+      if (ex.group_id && ex.group_iterations && ex.group_iterations > 1) {
+        // Find all exercises in this group
+        const groupExs: any[] = [];
+        let j = i;
+        while (j < plan.exercises.length && plan.exercises[j].group_id === ex.group_id) {
+          groupExs.push(plan.exercises[j]);
+          j++;
+        }
+        
+        const iterations = ex.group_iterations;
+        for (let r = 1; r <= iterations; r++) {
+          groupExs.forEach(ge => {
+            const totalSets = ge.target_sets || 1;
+            const setsPerRound = Math.ceil(totalSets / iterations);
+            const startSet = (r - 1) * setsPerRound;
+            
+            unrolled.push({ 
+              ...ge, 
+              round: r, 
+              totalRounds: iterations,
+              setsInRound: setsPerRound,
+              startSetIdx: startSet
+            });
+          });
+        }
+        i = j;
+      } else {
+        unrolled.push({ ...ex, round: 1, totalRounds: 1, setsInRound: ex.target_sets, startSetIdx: 0 });
+        i++;
+      }
+    }
+    return unrolled;
+  }, [plan?.exercises]);
+
+  const currentExercise = sessionExercises[currentExerciseIndex];
 
   // Fetch last session data for this exercise
   const { data: lastPerformance } = useQuery({
@@ -198,20 +240,28 @@ export default function WorkoutSession() {
   });
 
   const updateLog = (exerciseId: string, setIndex: number, updates: any) => {
+    const globalSetIdx = (currentExercise.startSetIdx || 0) + setIndex;
     const updatedExLogs = [...(logs[exerciseId] || [])];
-    if (!updatedExLogs[setIndex]) {
-      const targetReps = currentExercise?.target_reps_detail?.[setIndex] ?? currentExercise?.target_reps ?? 10;
-      updatedExLogs[setIndex] = { reps: targetReps.toString(), weight: '', rpe: '8', notes: '' };
+    if (!updatedExLogs[globalSetIdx]) {
+      const targetReps = currentExercise?.target_reps_detail?.[globalSetIdx] ?? currentExercise?.target_reps ?? 10;
+      updatedExLogs[globalSetIdx] = { reps: targetReps.toString(), weight: '', rpe: '8', notes: '' };
     }
-    const newLog = { ...updatedExLogs[setIndex], ...updates };
-    updatedExLogs[setIndex] = newLog;
+    const newLog = { ...updatedExLogs[globalSetIdx], ...updates };
+    updatedExLogs[globalSetIdx] = newLog;
     setLogs({ ...logs, [exerciseId]: updatedExLogs });
   };
 
   const handleConfirmSet = () => {
     if (!currentExercise) return;
-    if (currentExercise.rest_seconds) {
-      setRestTimeLeft(currentExercise.rest_seconds);
+    
+    const setsToComplete = currentExercise.setsInRound || currentExercise.target_sets || 1;
+    const isLastSet = currentSetIndex === (setsToComplete - 1);
+    
+    const restToUse = isLastSet ? (currentExercise.rest_esercizio ?? 0) : (currentExercise.rest_seconds ?? 0);
+    
+    if (restToUse > 0) {
+      setTotalRestStarted(restToUse);
+      setRestTimeLeft(restToUse);
       setIsResting(true);
       setRestStartTime(Date.now());
       setLastLoggedSet({ exerciseId: currentExercise.id, setIndex: currentSetIndex });
@@ -222,7 +272,9 @@ export default function WorkoutSession() {
 
   const moveToNextStep = () => {
     if (!plan || !currentExercise) return;
-    if (currentSetIndex < (currentExercise.target_sets - 1)) {
+    
+    const setsToComplete = currentExercise.setsInRound || currentExercise.target_sets || 1;
+    if (currentSetIndex < (setsToComplete - 1)) {
       setCurrentSetIndex(prev => prev + 1);
     } else {
       setShowExerciseFeedback(true);
@@ -276,7 +328,7 @@ export default function WorkoutSession() {
               transition={{ delay: 0.4 }}
               className="text-muted-foreground text-xl font-bold uppercase tracking-widest opacity-60"
             >
-              {plan?.exercises?.length} esercizi pronti
+              {sessionExercises.length} passi pronti
             </motion.p>
           </div>
         </div>
@@ -362,7 +414,7 @@ export default function WorkoutSession() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setShowFullList(true)}
-            className="w-12 h-12 glass-card rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:scale-105 active:scale-95 transition-all border-white/5"
+            className="w-12 h-12 glass-interactive rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:scale-105 active:scale-95 transition-all border-white/5"
             title="Lista Esercizi"
           >
             <List className="w-5 h-5" />
@@ -383,7 +435,7 @@ export default function WorkoutSession() {
 
           <button 
             onClick={() => setShowEndModal(true)}
-            className="h-12 px-6 glass-card rounded-xl flex items-center gap-2 border-red-500/20 hover:bg-red-500/10 text-red-500 font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all ml-1"
+            className="h-12 px-6 glass-interactive rounded-xl flex items-center gap-2 border-red-500/20 hover:bg-red-500/10 text-red-500 font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all ml-1"
           >
             <XCircle className="w-4 h-4" />
             <span className="hidden sm:inline">Stop</span>
@@ -404,11 +456,11 @@ export default function WorkoutSession() {
              <span className="text-xl font-black italic text-foreground tracking-tighter">
                {currentExerciseIndex + 1}
              </span>
-             <span className="text-xs font-black text-muted-foreground opacity-30 italic">/ {plan?.exercises?.length}</span>
+             <span className="text-xs font-black text-muted-foreground opacity-30 italic">/ {sessionExercises.length}</span>
            </div>
         </div>
         <div className="w-full bg-white/5 h-3 rounded-full overflow-hidden flex p-1 border border-white/5 shadow-inner">
-          {plan?.exercises?.map((_ex: any, idx: number) => {
+          {sessionExercises.map((_ex: any, idx: number) => {
             const isCurrent = idx === currentExerciseIndex;
             const isCompleted = idx < currentExerciseIndex;
             return (
@@ -453,7 +505,7 @@ export default function WorkoutSession() {
                     >
                       <Info className="w-6 h-6" />
                     </button>
-                    {currentExercise?.video_url && (
+                    {(currentExercise?.video_urls && currentExercise.video_urls.length > 0) && (
                       <button 
                         onClick={() => setIsMediaViewerOpen(true)}
                         className="p-3 text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10 rounded-2xl transition-all border border-transparent hover:border-blue-400/20"
@@ -466,15 +518,23 @@ export default function WorkoutSession() {
                 </div>
                 <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-[10px] flex items-center gap-3">
                   <Dumbbell className="w-4 h-4 text-primary" />
-                  Esercizio {currentExerciseIndex + 1} di {plan?.exercises?.length} — Serie {currentSetIndex + 1}/{currentExercise?.target_sets}
+                  Esercizio {currentExerciseIndex + 1} di {sessionExercises.length} 
+                  {currentExercise?.totalRounds > 1 && ` — Giro ${currentExercise.round}/${currentExercise.totalRounds}`}
+                  — Serie {(currentExercise.startSetIdx || 0) + currentSetIndex + 1}/{currentExercise?.target_sets}
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-3">
-                {currentExercise?.rest_seconds && (
+                {currentExercise?.rest_seconds > 0 && (
                   <div className="px-4 py-2 bg-secondary/30 ring-1 ring-white/5 rounded-xl text-[10px] font-black text-foreground uppercase tracking-widest flex items-center gap-2">
                     <Timer className="w-4 h-4 text-primary" />
-                    Recupero: {currentExercise.rest_seconds}s
+                    Set: {currentExercise.rest_seconds}s
+                  </div>
+                )}
+                {currentExercise?.rest_esercizio > 0 && (
+                  <div className="px-4 py-2 bg-secondary/30 ring-1 ring-white/5 rounded-xl text-[10px] font-black text-foreground uppercase tracking-widest flex items-center gap-2">
+                    <Timer className="w-4 h-4 text-emerald-500" />
+                    Fine es: {currentExercise.rest_esercizio}s
                   </div>
                 )}
                 <div className="px-4 py-2 bg-primary/10 ring-1 ring-primary/20 rounded-xl text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
@@ -501,8 +561,9 @@ export default function WorkoutSession() {
           <div className="mt-12 space-y-8">
             {(() => {
               const idx = currentSetIndex;
-              const setLog = logs[currentExercise?.id!]?.[idx] || { reps: '', weight: '', rpe: '8' };
-              const prevLog = lastPerformance?.logs?.[idx];
+              const globalSetIdx = (currentExercise.startSetIdx || 0) + idx;
+              const setLog = logs[currentExercise?.id!]?.[globalSetIdx] || { reps: '', weight: '', rpe: '8' };
+              const prevLog = lastPerformance?.logs?.[globalSetIdx];
 
               return (
                 <div className="space-y-8">
@@ -582,7 +643,7 @@ export default function WorkoutSession() {
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-6 pointer-events-auto">
           <button 
             onClick={() => setCurrentExerciseIndex(Math.max(0, currentExerciseIndex - 1))}
-            className="w-20 h-20 glass-card rounded-3xl flex items-center justify-center border-white/5 hover:border-primary/20 text-muted-foreground hover:text-primary transition-all active:scale-90 disabled:opacity-20"
+            className="w-20 h-20 glass-interactive rounded-3xl flex items-center justify-center border-white/5 hover:border-primary/20 text-muted-foreground hover:text-primary transition-all active:scale-90 disabled:opacity-20"
             disabled={currentExerciseIndex === 0}
           >
             <ChevronLeft className="w-8 h-8" />
@@ -590,9 +651,9 @@ export default function WorkoutSession() {
 
           <button 
             onClick={() => setShowExerciseFeedback(true)}
-            className="flex-1 h-20 glass-card rounded-3xl border-primary/20 hover:bg-primary/5 text-primary font-black italic tracking-[0.2em] uppercase flex items-center justify-center gap-4 group transition-all active:scale-95"
+            className="flex-1 h-20 glass-interactive rounded-3xl border-primary/20 hover:bg-primary/5 text-primary font-black italic tracking-[0.2em] uppercase flex items-center justify-center gap-4 group transition-all active:scale-95"
           >
-            {currentExerciseIndex === (plan?.exercises?.length || 0) - 1 ? 'Termina Allenamento' : 'Prossimo Esercizio'}
+            {currentExerciseIndex === (sessionExercises.length || 0) - 1 ? 'Termina Allenamento' : 'Prossimo Esercizio'}
             <ChevronRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
           </button>
         </div>
@@ -607,7 +668,7 @@ export default function WorkoutSession() {
 
       {isMediaViewerOpen && currentExercise && (
         <MediaViewer
-          urls={parseVideoUrls(currentExercise.video_url)}
+          urls={currentExercise.video_urls || []}
           title={currentExercise.name}
           isOpen={true}
           onClose={() => setIsMediaViewerOpen(false)}
@@ -643,7 +704,7 @@ export default function WorkoutSession() {
                     strokeWidth="12"
                     strokeDasharray={691}
                     initial={{ strokeDashoffset: 691 }}
-                    animate={{ strokeDashoffset: 691 * (1 - (restTimeLeft ?? 0) / (currentExercise?.rest_seconds || 60)) }}
+                    animate={{ strokeDashoffset: 691 * (1 - (restTimeLeft ?? 0) / (totalRestStarted || 60)) }}
                     strokeLinecap="round"
                     transition={{ duration: 1, ease: "linear" }}
                   />
@@ -661,7 +722,7 @@ export default function WorkoutSession() {
                     <button
                       key={sec}
                       onClick={() => setRestTimeLeft(prev => (prev || 0) + sec)}
-                      className="py-4 glass-card rounded-2xl text-xs font-black italic hover:bg-white/5 active:scale-95 transition-all"
+                      className="py-4 glass-interactive rounded-2xl text-xs font-black italic hover:bg-white/5 active:scale-95 transition-all"
                     >
                       +{sec}s
                     </button>
@@ -741,7 +802,7 @@ export default function WorkoutSession() {
                   setShowExerciseFeedback(false);
                   setExerciseFeedback('');
                   setCurrentSetIndex(0);
-                  if (currentExerciseIndex === (plan?.exercises?.length || 0) - 1) {
+                  if (currentExerciseIndex === (sessionExercises.length || 0) - 1) {
                     endMutation.mutate();
                   } else {
                     setCurrentExerciseIndex(currentExerciseIndex + 1);
@@ -785,10 +846,14 @@ export default function WorkoutSession() {
               </div>
               
               <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
-                {plan?.exercises?.map((ex: any, idx: number) => {
+                {sessionExercises.map((ex: any, idx: number) => {
                   const isCurrent = idx === currentExerciseIndex;
                   const isCompleted = idx < currentExerciseIndex;
-                  const doneSets = (logs[ex.id] || []).filter((l: any) => l.reps && l.weight).length;
+                  const doneSets = (logs[ex.id] || []).filter((l: any, lIdx: number) => 
+                    lIdx >= (ex.startSetIdx || 0) && 
+                    lIdx < (ex.startSetIdx || 0) + (ex.setsInRound || 1) &&
+                    l.reps && l.weight
+                  ).length;
                   
                   return (
                     <button
@@ -819,13 +884,13 @@ export default function WorkoutSession() {
                       <div className={clsx(
                         "font-black text-xl uppercase italic tracking-tight",
                         isCurrent ? "text-white" : "text-foreground"
-                      )}>{ex.name}</div>
+                      )}>{ex.name} {ex.totalRounds > 1 && `(Giro ${ex.round})`}</div>
                       <div className={clsx(
                         "text-[10px] font-bold mt-2 flex items-center gap-2",
                         isCurrent ? "text-white/60" : "text-muted-foreground"
                       )}>
                         <div className={clsx("w-1.5 h-1.5 rounded-full animate-pulse", isCurrent ? "bg-white" : "bg-primary")} />
-                        {doneSets} / {ex.target_sets} serie completate
+                        {doneSets} / {ex.setsInRound || ex.target_sets} serie completate
                       </div>
                     </button>
                   );

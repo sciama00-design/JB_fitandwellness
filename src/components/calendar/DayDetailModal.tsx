@@ -73,7 +73,7 @@ export default function DayDetailModal({ date, isOpen, onClose, sessions = [], m
                     </a>
                     <button 
                       onClick={() => downloadIcsFile(apt.title, apt.description, apt.start_time, apt.end_time, apt.location)}
-                      className="w-11 h-11 glass-card rounded-xl flex items-center justify-center text-muted-foreground hover:text-emerald-500 transition-all"
+                      className="w-11 h-11 glass-interactive rounded-xl flex items-center justify-center text-muted-foreground hover:text-emerald-500 transition-all"
                       title="Scarica .ics"
                     >
                       <Download className="w-4 h-4" />
@@ -110,7 +110,7 @@ export default function DayDetailModal({ date, isOpen, onClose, sessions = [], m
                      {onViewSession && (
                        <button 
                          onClick={() => onViewSession(session.id)}
-                         className="w-10 h-10 glass-card rounded-xl flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all"
+                         className="w-10 h-10 glass-interactive rounded-xl flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all"
                          title="Visualizza Dettagli"
                        >
                          <ChevronRight className="w-5 h-5" />
@@ -119,7 +119,7 @@ export default function DayDetailModal({ date, isOpen, onClose, sessions = [], m
                      {onDeleteSession && (
                        <button 
                          onClick={() => onDeleteSession(session.id)}
-                         className="w-10 h-10 glass-card rounded-xl flex items-center justify-center text-red-500/30 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
+                         className="w-10 h-10 glass-interactive rounded-xl flex items-center justify-center text-red-500/30 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
                          title="Elimina Sessione"
                        >
                          <Trash2 className="w-5 h-5" />

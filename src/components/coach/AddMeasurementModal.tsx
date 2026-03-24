@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { X, Scale, Calendar, Save } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Scale, Calendar, Save, Loader2 } from 'lucide-react';
 import type { BodyMeasurement } from '../../types/database';
 
 interface AddMeasurementModalProps {
   athleteId: string;
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (measurement: Partial<BodyMeasurement>) => void;
+  onAdd: (measurement: Partial<BodyMeasurement>) => Promise<void>;
 }
 
 export default function AddMeasurementModal({ athleteId, isOpen, onClose, onAdd }: AddMeasurementModalProps) {
@@ -25,12 +25,43 @@ export default function AddMeasurementModal({ athleteId, isOpen, onClose, onAdd 
     notes: '',
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        athlete_id: athleteId,
+        recorded_at: new Date().toISOString().split('T')[0],
+        weight: undefined,
+        body_fat_percentage: undefined,
+        waist: undefined,
+        hips: undefined,
+        chest: undefined,
+        neck: undefined,
+        biceps: undefined,
+        thighs: undefined,
+        calves: undefined,
+        notes: '',
+      });
+      setIsSubmitting(false);
+    }
+  }, [isOpen, athleteId]);
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd(formData);
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await onAdd(formData);
+      onClose();
+    } catch (error) {
+      console.error("Error adding measurement:", error);
+      // Feedback will be handled by toast in parent or here if preferred
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -160,10 +191,17 @@ export default function AddMeasurementModal({ athleteId, isOpen, onClose, onAdd 
             </button>
             <button
               type="submit"
+              disabled={isSubmitting}
               className="flex-[2] btn btn-primary py-3 rounded-2xl flex items-center justify-center gap-2"
             >
-              <Save className="w-5 h-5" />
-              Salva Misura
+              {isSubmitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  Salva Misura
+                </>
+              )}
             </button>
           </div>
         </form>

@@ -17,7 +17,7 @@ import WeeklyPlanner from './pages/athlete/WeeklyPlanner'
 import CoachDietGenerator from './pages/coach/CoachDietGenerator'
 import CoachCalendar from './pages/coach/CoachCalendar'
 import { Loader2 } from 'lucide-react'
-import { Toaster } from 'react-hot-toast'
+import { Toaster } from 'sonner'
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'coach' | 'athlete' }> = ({ children, requiredRole }) => {
   const { user, loading, role, signOut, initialized } = useAuth()
@@ -96,7 +96,21 @@ function App() {
 
   return (
     <>
-      <Toaster position="top-right" />
+      <Toaster 
+        theme="dark" 
+        position="top-right" 
+        toastOptions={{
+          style: {
+            background: 'oklch(0.18 0.02 240 / 0.9)',
+            border: '1px solid oklch(1 0 0 / 0.08)',
+            color: 'oklch(0.98 0.01 240)',
+            backdropFilter: 'blur(24px)',
+            borderRadius: '1rem',
+          },
+        }}
+        richColors
+        closeButton
+      />
       <AthleteNavigationProvider>
         <BrowserRouter>
           <Routes>

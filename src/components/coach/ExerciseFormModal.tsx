@@ -5,7 +5,7 @@ import { EXERCISE_TRANSLATIONS } from '../../lib/translations';
 import { exerciseService } from '../../services/exerciseService';
 import type { ExerciseLibrary } from '../../types/database';
 import { useAuth } from '../../lib/auth';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 interface ExerciseFormModalProps {
   isOpen: boolean;
@@ -28,7 +28,6 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
     mechanic: '',
     force: '',
     difficulty_level: 'intermediate',
-    video_url: '',
     video_urls: [],
     images: [],
     coach_id: user?.id
@@ -41,7 +40,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
     if (exercise) {
       setFormData({
         ...exercise,
-        video_urls: exercise.video_urls || (exercise.video_url ? [exercise.video_url] : []),
+        video_urls: exercise.video_urls || [],
         images: exercise.images || []
       });
     } else {
@@ -56,7 +55,6 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
         mechanic: '',
         force: '',
         difficulty_level: 'intermediate',
-        video_url: '',
         video_urls: [],
         images: [],
         coach_id: user?.id
@@ -79,8 +77,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
         // Detect if media changed
         const hasMediaChanged = 
           JSON.stringify(formData.video_urls || []) !== JSON.stringify(exercise.video_urls || []) ||
-          JSON.stringify(formData.images || []) !== JSON.stringify(exercise.images || []) ||
-          (formData.video_url || '') !== (exercise.video_url || '');
+          JSON.stringify(formData.images || []) !== JSON.stringify(exercise.images || []);
 
         if (isSystemExercise && hasMediaChanged) {
           // Create a personal fork
@@ -142,9 +139,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
         const newUrls = [...currentUrls, cleanUrl];
         return {
           ...prev,
-          video_urls: newUrls,
-          // Always keep video_url (singular) in sync with the first video for legacy support
-          video_url: newUrls[0]
+          video_urls: newUrls
         };
       });
       setVideoUrl('');
@@ -163,8 +158,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
       const newUrls = prev.video_urls?.filter(v => v !== url) || [];
       return {
         ...prev,
-        video_urls: newUrls,
-        video_url: newUrls.length > 0 ? newUrls[0] : null
+        video_urls: newUrls
       };
     });
   };

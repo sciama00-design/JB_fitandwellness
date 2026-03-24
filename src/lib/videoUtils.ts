@@ -1,6 +1,7 @@
-export const parseVideoUrls = (urlStr: string | null | undefined): string[] => {
-  if (!urlStr) return [];
-  return urlStr.split(',').map(s => s.trim()).filter(Boolean);
+export const parseVideoUrls = (input: string | string[] | null | undefined): string[] => {
+  if (!input) return [];
+  if (Array.isArray(input)) return input.map(s => s.trim()).filter(Boolean);
+  return input.split(',').map(s => s.trim()).filter(Boolean);
 };
 
 export const stringifyVideoUrls = (urls: string[]): string | null => {

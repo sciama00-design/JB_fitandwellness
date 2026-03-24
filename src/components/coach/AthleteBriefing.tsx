@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { geminiService } from '../../services/geminiService';
 import { supabase } from '../../lib/supabase';
 import { Sparkles, Loader2, ClipboardCheck } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 
 interface AthleteBriefingProps {
@@ -79,8 +80,8 @@ export default function AthleteBriefing({ athleteId, athleteProfile, dietPlan }:
         </div>
       ) : briefing ? (
         <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-500">
-          <div className="bg-primary-950/20 border border-primary-500/20 rounded-2xl p-4 text-sm text-slate-300 leading-relaxed italic border-l-4 border-l-primary-500">
-            {briefing}
+          <div className="bg-primary-950/20 border border-primary-500/20 rounded-2xl p-6 text-sm text-slate-300 leading-relaxed border-l-4 border-l-primary-500 prose prose-invert prose-slate prose-sm max-w-none prose-p:leading-relaxed prose-headings:text-white prose-strong:text-primary-400 prose-ul:list-disc prose-li:my-1">
+            <ReactMarkdown>{briefing}</ReactMarkdown>
           </div>
           <button 
             onClick={generateBriefing}

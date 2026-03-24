@@ -11,6 +11,7 @@ export type Profile = {
   intolerances: string[] | null;
   disliked_foods: string[] | null;
   schedule_constraints: string | null;
+  focus_objectives: string | null;
 };
 
 export type ExerciseLibrary = {
@@ -19,7 +20,6 @@ export type ExerciseLibrary = {
   name_it?: string | null;
   description: string | null;
   description_it?: string | null;
-  video_url: string | null;
   video_urls?: string[] | null;
   muscle_group: string | null;
   muscle_group_secondary: string | null;
@@ -30,6 +30,7 @@ export type ExerciseLibrary = {
   images: string[] | null;
   forked_from?: string | null;
   coach_id: string | null;
+  embedding?: number[] | null;
   created_at: string;
 };
 
@@ -60,15 +61,17 @@ export type PlanTemplateExercise = {
   target_sets: number;
   target_reps: number;
   rest_seconds: number;
-  rest_between_reps_seconds: number;
+  rest_esercizio: number;
   order_index: number;
-  video_url: string | null;
   image_url: string | null;
   coach_notes: string | null;
   superset_id: string | null;
   group_id: string | null;
   group_name: string | null;
   target_reps_detail: number[] | null;
+  spoken_name?: string;
+  group_iterations?: number | null;
+  video_urls?: string[] | null;
   created_at: string;
 };
 
@@ -80,15 +83,17 @@ export type PlanExercise = {
   target_sets: number;
   target_reps: number;
   rest_seconds: number;
-  rest_between_reps_seconds: number;
+  rest_esercizio: number;
   order_index: number;
-  video_url: string | null;
   image_url: string | null;
   coach_notes: string | null;
   superset_id: string | null;
   group_id: string | null;
   group_name: string | null;
   target_reps_detail: number[] | null;
+  spoken_name?: string;
+  group_iterations?: number | null;
+  video_urls?: string[] | null;
   created_at: string;
 };
 
@@ -193,6 +198,21 @@ export type Recipe = {
   instructions: string | null;
   is_public: boolean;
   coach_id: string | null;
+  created_at: string;
+};
+
+export type ExerciseMapping = {
+  id: string;
+  coach_id: string;
+  slang_name: string;
+  standard_exercise_id: string;
+  created_at: string;
+};
+
+export type CoachPreference = {
+  id: string;
+  coach_id: string;
+  content: string;
   created_at: string;
 };
 

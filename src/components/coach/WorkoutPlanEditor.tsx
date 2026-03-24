@@ -4,11 +4,10 @@ import {
   Plus, Trash2, Save, GripVertical, 
   Link as LinkIcon, Unlink, Loader2, ChevronRight,
   Info, LayoutGrid, Flame, Pencil, Eye, Check, X, MessageSquare,
-  ClipboardList, Tv
+  ClipboardList, Tv, Sparkles
 } from 'lucide-react';
 import ExerciseDetailModal from '../ExerciseDetailModal';
 import { MediaViewer } from '../shared/MediaViewer';
-import { parseVideoUrls, stringifyVideoUrls } from '../../lib/videoUtils';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import ReactMarkdown from 'react-markdown';
 import { useQuery } from '@tanstack/react-query';
@@ -18,6 +17,10 @@ import { exerciseService } from '../../services/exerciseService';
 import Modal from '../Modal';
 import AdvancedExerciseFilters from '../ExerciseFilters';
 import { cn } from '../../lib/utils';
+import VoiceCompiler from './VoiceCompiler';
+import { mappingService } from '../../services/mappingService';
+import CoachPreferencesChat from './CoachPreferencesChat';
+import { coachPreferenceService } from '../../services/coachPreferenceService';
 
 interface WorkoutPlanEditorProps {
   initialData?: (WorkoutPlan & { exercises: PlanExercise[] }) | (WorkoutPlanTemplate & { exercises: PlanTemplateExercise[] });
@@ -44,16 +47,73 @@ export default function WorkoutPlanEditor({
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [selectedExerciseInfo, setSelectedExerciseInfo] = useState<ExerciseLibrary | null>(null);
   const [activeMediaViewerIndex, setActiveMediaViewerIndex] = useState<number | null>(null);
+  const [lastTranscription, setLastTranscription] = useState<string | null>(null);
   
   // Group-first flow states
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [isNamingGroup, setIsNamingGroup] = useState(false);
   const [tempGroupName, setTempGroupName] = useState('');
   const [pendingGroupName, setPendingGroupName] = useState('');
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  const storageKey = useMemo(() => {
+    const id = initialData?.id || 'new';
+    const type = isTemplate ? 'template' : 'plan';
+    return `workout_draft_${type}_${mode}_${id}`;
+  }, [initialData?.id, isTemplate, mode]);
+
+  // Load draft on mount
+  useEffect(() => {
+    const draft = localStorage.getItem(storageKey);
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        setPlanName(parsed.planName || '');
+        setDescription(parsed.description || '');
+        setExercises(parsed.exercises || []);
+        if (!isTemplate) setAthleteId(parsed.athleteId || '');
+        setLastTranscription(parsed.lastTranscription || null);
+        setIsInitialized(true);
+      } catch (e) {
+        console.error("Failed to parse workout draft", e);
+        // If draft fails, we still need to wait for initialData if in edit mode
+        if (mode === 'create') setIsInitialized(true);
+      }
+    } else if (mode === 'create') {
+      // If no draft and in create mode, mark as initialized immediately
+      setIsInitialized(true);
+    }
+    // In edit mode, we wait for initialData to arrive via the other useEffect
+  }, [storageKey, isTemplate, mode]);
+
+  // Save draft on change
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const state = {
+      planName,
+      description,
+      exercises,
+      athleteId: isTemplate ? undefined : athleteId,
+      lastTranscription
+    };
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  }, [planName, description, exercises, athleteId, lastTranscription, storageKey, isTemplate, isInitialized]);
+
+  const clearDraft = () => {
+    localStorage.removeItem(storageKey);
+  };
+
+  const handleDiscard = () => {
+    if (window.confirm('Sei sicuro di voler annullare le modifiche? Tutti i dati non salvati andranno perduti.')) {
+      clearDraft();
+      window.location.reload(); // Hard refresh to reset to initial state from server
+    }
+  };
   
   // Derived groups from exercises
   const groups = useMemo(() => {
-    const g: { id: string; name: string; exerciseCount: number }[] = [];
+    const g: { id: string; name: string; exerciseCount: number; iterations: number }[] = [];
     const seen = new Set<string>();
     
     exercises.forEach(ex => {
@@ -62,12 +122,18 @@ export default function WorkoutPlanEditor({
         g.push({
           id: ex.group_id,
           name: ex.group_name || 'Senza nome',
-          exerciseCount: exercises.filter(e => e.group_id === ex.group_id).length
+          exerciseCount: exercises.filter(e => e.group_id === ex.group_id).length,
+          iterations: ex.group_iterations || 1
         });
       }
     });
     return g;
   }, [exercises]);
+
+  const activeGroupIterations = useMemo(() => {
+    const existing = groups.find(g => g.id === activeGroupId);
+    return existing ? existing.iterations : 1;
+  }, [groups, activeGroupId]);
 
   const activeGroupName = useMemo(() => {
     const existing = groups.find(g => g.id === activeGroupId);
@@ -77,6 +143,19 @@ export default function WorkoutPlanEditor({
   const { data: allLibraryExercises } = useQuery({
     queryKey: ['exercises'],
     queryFn: exerciseService.getAllExercises,
+  });
+
+  const { user } = useAuth();
+  const { data: mappings, refetch: refetchMappings } = useQuery({
+    queryKey: ['exercise-mappings', user?.id],
+    queryFn: () => mappingService.getMappings(user!.id),
+    enabled: !!user?.id,
+  });
+
+  const { data: preferences } = useQuery({
+    queryKey: ['coach-preferences', user?.id],
+    queryFn: () => coachPreferenceService.getPreferences(user!.id!),
+    enabled: !!user?.id,
   });
 
   const handleShowInfo = (libraryId: string | null) => {
@@ -90,13 +169,14 @@ export default function WorkoutPlanEditor({
   
   // Update state when initialData changes (e.g. after fetch)
   useEffect(() => {
-    if (initialData) {
+    if (initialData && !isInitialized) {
       setPlanName(initialData.name);
       if (!isTemplate) setAthleteId((initialData as WorkoutPlan).athlete_id);
       setDescription(initialData.description || '');
       setExercises(initialData.exercises || []);
+      setIsInitialized(true);
     }
-  }, [initialData, isTemplate]);
+  }, [initialData, isTemplate, isInitialized]);
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -116,9 +196,23 @@ export default function WorkoutPlanEditor({
       const [reorderedItem] = items.splice(sourceIdx, 1);
       items.splice(destIdx, 0, reorderedItem);
     } else {
-      // Global reorder (if allowed/used)
-      const [reorderedItem] = items.splice(result.source.index, 1);
-      items.splice(result.destination.index, 0, reorderedItem);
+      // Global reorder of GROUPS
+      const newGroupsOrder = Array.from(groups);
+      const [reorderedGroup] = newGroupsOrder.splice(result.source.index, 1);
+      newGroupsOrder.splice(result.destination.index, 0, reorderedGroup);
+      
+      const updated: any[] = [];
+      newGroupsOrder.forEach(g => {
+        const groupExs = items.filter(ex => ex.group_id === g.id);
+        updated.push(...groupExs);
+      });
+      
+      // Add any exercises that are not in a group (if any) at the end
+      const noGroupExs = items.filter(ex => !ex.group_id);
+      updated.push(...noGroupExs);
+      
+      setExercises(updated.map((ex, idx) => ({ ...ex, order_index: idx })));
+      return; 
     }
     
     // Update order_index for all
@@ -133,9 +227,9 @@ export default function WorkoutPlanEditor({
       target_sets: 3,
       target_reps: 10,
       rest_seconds: 60,
-      rest_between_reps_seconds: 0,
+      rest_esercizio: 0,
       order_index: exercises.length,
-      video_url: libEx.video_url,
+      video_urls: libEx.video_urls || [],
       image_url: libEx.images?.[0] || null,
       group_id: activeGroupId,
       group_name: activeGroupName,
@@ -144,6 +238,101 @@ export default function WorkoutPlanEditor({
     };
     setExercises([...exercises, newEx]);
     setIsSelectModalOpen(false);
+  };
+
+  const handleVoiceResult = (aiResult: { exercises: any[], transcription?: string, action_taken?: 'append' | 'modify' }) => {
+    if (aiResult.transcription) {
+      setLastTranscription(aiResult.transcription);
+    }
+
+    const aiExercises = aiResult.exercises;
+    const isModify = aiResult.action_taken === 'modify';
+    
+    const newItems: any[] = [];
+    const localGroupMap = new Map<string, string>(); // name -> id
+
+    aiExercises.forEach((aiEx, idx) => {
+      const libEx = aiEx.exercise_library_id ? allLibraryExercises?.find(e => e.id === aiEx.exercise_library_id) : null;
+      
+      // Grouping logic
+      let groupId = aiEx.group_id || null;
+      let groupName = aiEx.group_name || null;
+
+      if (groupName) {
+        // 1. Check if we already created this group in THIS loop
+        if (localGroupMap.has(groupName)) {
+            groupId = localGroupMap.get(groupName)!;
+        } else {
+            // 2. Check if the group already exists in the editor
+            const existingInEditor = exercises.find(ex => ex.group_name === groupName);
+            if (existingInEditor) {
+                groupId = existingInEditor.group_id;
+                localGroupMap.set(groupName, groupId!);
+            } else {
+                // 3. Create new group
+                groupId = aiEx.group_id || crypto.randomUUID();
+                localGroupMap.set(groupName, groupId);
+            }
+        }
+      }
+
+      // Parse reps (can be "10" or "10,9,8")
+      const repsStr = String(aiEx.target_reps || "10");
+      const repsArray = repsStr.includes(',') 
+        ? repsStr.split(',').map(r => parseInt(r.trim()) || 10)
+        : Array(aiEx.target_sets || 3).fill(parseInt(repsStr) || 10);
+      
+      const finalSets = repsStr.includes(',') ? repsArray.length : (aiEx.target_sets || 3);
+
+      newItems.push({
+        exercise_library_id: aiEx.exercise_library_id || null,
+        name: aiEx.name,
+        spoken_name: aiEx.spoken_name,
+        target_sets: finalSets,
+        target_reps: repsArray[0],
+        rest_seconds: aiEx.rest_seconds || 60,
+        rest_esercizio: 0,
+        order_index: isModify ? idx : (exercises.length + idx),
+        video_urls: libEx?.video_urls || [],
+        image_url: libEx?.images?.[0] || null,
+        group_id: groupId || activeGroupId,
+        group_name: groupName || activeGroupName,
+        group_iterations: aiEx.group_iterations || 1,
+        superset_id: aiEx.is_superset ? crypto.randomUUID() : null,
+        target_reps_detail: repsArray,
+        coach_notes: aiEx.coach_notes || null,
+      });
+    });
+
+    if (isModify) {
+      setExercises(newItems);
+    } else {
+      setExercises([...exercises, ...newItems]);
+    }
+  };
+
+  const handleManualExerciseUpdate = async (index: number, updates: Partial<PlanExercise>) => {
+    const currentEx = exercises[index];
+    
+    // Learning mechanism: if this was an AI exercise with a spoken name
+    // and the coach is now assigning a library ID for the first time or changing it
+    if (currentEx.spoken_name && updates.exercise_library_id && updates.exercise_library_id !== currentEx.exercise_library_id) {
+      const confirmMapping = window.confirm(`Vuoi associare "${currentEx.spoken_name}" a questo esercizio per il futuro?`);
+      if (confirmMapping) {
+        try {
+          await mappingService.createMapping({
+            coach_id: user!.id,
+            slang_name: currentEx.spoken_name,
+            standard_exercise_id: updates.exercise_library_id
+          });
+          refetchMappings();
+        } catch (err) {
+          console.error("Error saving mapping:", err);
+        }
+      }
+    }
+
+    updateExercise(index, updates);
   };
 
   const handleCreateGroup = (name: string) => {
@@ -168,6 +357,13 @@ export default function WorkoutPlanEditor({
       setActiveGroupId(null);
       setPendingGroupName('');
     }
+  };
+
+  const updateGroupIterations = (groupId: string, iterations: number) => {
+    const newExercises = exercises.map(ex => 
+      ex.group_id === groupId ? { ...ex, group_iterations: iterations } : ex
+    );
+    setExercises(newExercises);
   };
 
   const removeExercise = (index: number) => {
@@ -228,6 +424,7 @@ export default function WorkoutPlanEditor({
       planData.athlete_id = athleteId;
     }
     
+    clearDraft();
     onSubmit({
       plan: planData,
       exercises: exercises
@@ -277,15 +474,37 @@ export default function WorkoutPlanEditor({
           <p className="text-slate-400 font-medium ml-15">
             {isTemplate ? 'Crea un modello di scheda da riutilizzare per i tuoi atleti.' : 'Configura esercizi, superset e gruppi per il tuo atleta.'}
           </p>
+          {lastTranscription && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="mt-4 p-3 bg-primary/5 border border-primary/10 rounded-xl max-w-2xl"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-3 h-3 text-primary" />
+                <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Ultima Trascrizione AI</span>
+              </div>
+              <p className="text-xs text-slate-300 italic block">"{lastTranscription}"</p>
+            </motion.div>
+          )}
         </div>
         
-        <button 
-          onClick={handleSave}
-          className={btnPrimaryClasses}
-          disabled={isSubmitting || !planName || (!isTemplate && !athleteId)}
-        >
-          {isSubmitting ? <Loader2 className="animate-spin" /> : <><Save className="w-5 h-5" /> Salva {isTemplate ? 'Modello' : 'Scheda'}</>}
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleDiscard}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+          >
+            <Trash2 className="w-5 h-5" /> Annulla e Elimina
+          </button>
+          
+          <button 
+            onClick={handleSave}
+            className={btnPrimaryClasses}
+            disabled={isSubmitting || !planName || (!isTemplate && !athleteId)}
+          >
+            {isSubmitting ? <Loader2 className="animate-spin" /> : <><Save className="w-5 h-5" /> Salva {isTemplate ? 'Modello' : 'Scheda'}</>}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -428,52 +647,94 @@ export default function WorkoutPlanEditor({
                   </motion.div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {groups.map((group) => (
-                    <button
-                      key={group.id}
-                      onClick={() => setActiveGroupId(group.id)}
-                      className="flex items-center justify-between p-6 bg-slate-900/40 border border-slate-800/80 hover:border-primary-500/50 hover:bg-slate-800/40 rounded-3xl transition-all group text-left"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-primary-500/10 flex items-center justify-center text-primary-400 group-hover:scale-110 transition-transform">
-                          <Flame className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <span className="font-bold text-slate-100 block text-lg group-hover:text-primary-300 transition-colors">{group.name}</span>
-                          <span className="text-xs text-slate-500 font-medium">{group.exerciseCount} esercizi</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div 
-                          onClick={(e) => { e.stopPropagation(); deleteGroup(group.id); }}
-                          className="p-2 text-slate-600 hover:text-red-400 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </div>
-                        <ChevronRight className="w-5 h-5 text-slate-600 group-hover:translate-x-1 transition-all" />
-                      </div>
-                    </button>
-                  ))}
-
-                  {groups.length === 0 && !isNamingGroup && (
-                    <div className="md:col-span-2 text-center py-20 bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-800 flex flex-col items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-600">
-                        <LayoutGrid className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <p className="text-slate-400 font-bold">Nessun gruppo creato</p>
-                        <p className="text-slate-500 text-sm">Inizia creando il primo gruppo di esercizi.</p>
-                      </div>
-                      <button 
-                        onClick={() => setIsNamingGroup(true)}
-                        className="mt-2 px-6 py-2 bg-primary-600/10 text-primary-400 border border-primary-500/20 rounded-xl font-bold hover:bg-primary-600/20 transition-all"
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <Droppable droppableId="groups-list" direction="horizontal">
+                    {(provided) => (
+                      <div 
+                        {...provided.droppableProps}
+                        ref={provided.innerRef}
+                        className="grid grid-cols-1 md:grid-cols-2 gap-4"
                       >
-                        Crea Gruppo
-                      </button>
-                    </div>
-                  )}
-                </div>
+                        {groups.map((group, groupIdx) => (
+                          <Draggable key={group.id} draggableId={group.id} index={groupIdx}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={cn(
+                                  "transition-all duration-200",
+                                  snapshot.isDragging ? "z-50 scale-[1.02] shadow-2xl" : ""
+                                )}
+                              >
+                                <button
+                                  onClick={() => setActiveGroupId(group.id)}
+                                  className="w-full flex items-center justify-between p-6 bg-slate-900/40 border border-slate-800/80 hover:border-primary-500/50 hover:bg-slate-800/40 rounded-3xl transition-all group text-left"
+                                >
+                                  <div className="flex items-center gap-4">
+                                    <div {...provided.dragHandleProps} className="p-1 cursor-grab active:cursor-grabbing text-slate-700 hover:text-slate-400 transition-colors">
+                                      <GripVertical className="w-5 h-5" />
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-primary-500/10 flex items-center justify-center text-primary-400 group-hover:scale-110 transition-transform">
+                                      <Flame className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                      <span className="font-bold text-slate-100 block text-lg group-hover:text-primary-300 transition-colors uppercase tracking-tight italic">{group.name}</span>
+                                      <div className="flex items-center gap-3 mt-1">
+                                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{group.exerciseCount} esercizi</span>
+                                        <div className="w-1 h-1 rounded-full bg-slate-800" />
+                                        <div 
+                                          onClick={(e) => e.stopPropagation()} 
+                                          className="flex items-center gap-2 bg-slate-950/50 px-2 py-0.5 rounded-lg border border-slate-800/50 focus-within:border-primary-500/50 transition-colors"
+                                        >
+                                          <span className="text-[9px] font-black text-slate-600 uppercase">Giri:</span>
+                                          <input 
+                                            type="number" 
+                                            min="1"
+                                            className="w-8 bg-transparent text-[10px] font-black text-primary-400 outline-none p-0 border-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            value={group.iterations}
+                                            onChange={(e) => updateGroupIterations(group.id, parseInt(e.target.value) || 1)}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div 
+                                      onClick={(e) => { e.stopPropagation(); deleteGroup(group.id); }}
+                                      className="p-2 text-slate-600 hover:text-red-400 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-slate-600 group-hover:translate-x-1 transition-all" />
+                                  </div>
+                                </button>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+
+                        {groups.length === 0 && !isNamingGroup && (
+                          <div className="md:col-span-2 text-center py-20 bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-800 flex flex-col items-center gap-4">
+                            <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center text-slate-600">
+                              <LayoutGrid className="w-8 h-8" />
+                            </div>
+                            <div>
+                              <p className="text-slate-400 font-bold">Nessun gruppo creato</p>
+                              <p className="text-slate-500 text-sm">Inizia creando il primo gruppo di esercizi.</p>
+                            </div>
+                            <button 
+                              onClick={() => setIsNamingGroup(true)}
+                              className="mt-2 px-6 py-2 bg-primary-600/10 text-primary-400 border border-primary-500/20 rounded-xl font-bold hover:bg-primary-600/20 transition-all"
+                            >
+                              Crea Gruppo
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
               </motion.div>
             ) : (
               <motion.div
@@ -497,8 +758,18 @@ export default function WorkoutPlanEditor({
                         "px-2.5 py-0.5 rounded-full text-xs font-bold",
                         isEdit ? "bg-amber-500/20 text-amber-400" : "bg-violet-500/20 text-violet-400"
                       )}>
-                        {exercises.filter(ex => ex.group_id === activeGroupId).length}
+                        {exercises.filter(ex => ex.group_id === activeGroupId).length} es.
                       </span>
+                      <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1 rounded-xl border border-slate-700/50 ml-2">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Giri:</span>
+                        <input 
+                          type="number"
+                          min="1"
+                          className="w-10 bg-transparent text-sm font-black text-primary-400 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={activeGroupIterations}
+                          onChange={(e) => updateGroupIterations(activeGroupId!, parseInt(e.target.value) || 1)}
+                        />
+                      </div>
                     </h2>
                   </div>
                   <button 
@@ -540,7 +811,7 @@ export default function WorkoutPlanEditor({
                                   themeColor={themeColor}
                                   dragHandleProps={provided.dragHandleProps}
                                   onRemove={() => removeExercise(originalIndex)}
-                                  onUpdate={(updates) => updateExercise(originalIndex, updates)}
+                                  onUpdate={(updates) => handleManualExerciseUpdate(originalIndex, updates)}
                                   onToggleSuperset={() => toggleSuperset(originalIndex)}
                                   onGroupAssign={(name) => assignGroup(originalIndex, name)}
                                   onShowInfo={() => handleShowInfo(ex.exercise_library_id || null)}
@@ -592,17 +863,52 @@ export default function WorkoutPlanEditor({
         />
       )}
 
-      {activeMediaViewerIndex !== null && (
-        <MediaViewer
-          urls={parseVideoUrls(exercises[activeMediaViewerIndex]?.video_url)}
-          title={exercises[activeMediaViewerIndex]?.name}
-          onUrlsChange={(newUrls) => {
-            updateExercise(activeMediaViewerIndex, { video_url: stringifyVideoUrls(newUrls) });
-          }}
-          isOpen={true}
-          onClose={() => setActiveMediaViewerIndex(null)}
+      <AnimatePresence>
+        {selectedExerciseInfo && (
+          <ExerciseDetailModal 
+            exercise={selectedExerciseInfo}
+            isOpen={!!selectedExerciseInfo}
+            onClose={() => setSelectedExerciseInfo(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {activeMediaViewerIndex !== null && (
+          <MediaViewer
+            urls={exercises[activeMediaViewerIndex]?.video_urls || []}
+            title={exercises[activeMediaViewerIndex]?.name}
+            onUrlsChange={(newUrls) => {
+              updateExercise(activeMediaViewerIndex, { video_urls: newUrls });
+            }}
+            isOpen={true}
+            onClose={() => setActiveMediaViewerIndex(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* AI Assistance Buttons */}
+      <div className="fixed bottom-8 right-8 z-50 flex flex-col gap-4">
+        <CoachPreferencesChat />
+        <VoiceCompiler 
+          onResult={handleVoiceResult} 
+          libraryContext={allLibraryExercises || []}
+          existingMappings={mappings || []}
+          currentPlan={exercises}
+          preferences={preferences || []}
         />
-      )}
+      </div>
+
+      <Modal
+        isOpen={isSelectModalOpen}
+        onClose={() => setIsSelectModalOpen(false)}
+        title="Seleziona Esercizio"
+      >
+        <ExerciseSelector 
+          onSelect={addExercise}
+          onInfo={(ex) => setSelectedExerciseInfo(ex)}
+        />
+      </Modal>
     </div>
   );
 }
@@ -687,12 +993,12 @@ function ExerciseItem({
                     onClick={onOpenMediaViewer}
                     className={cn(
                       "text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all px-2 py-1 rounded-md hover:bg-slate-800/50",
-                      ex.video_url 
+                      ex.video_urls && ex.video_urls.length > 0
                         ? (themeColor === 'amber' ? "text-amber-500 hover:text-amber-400" : "text-violet-500 hover:text-violet-400") 
                         : "text-slate-500 hover:text-slate-300"
                     )}
                   >
-                    <Tv className="w-3 h-3" /> {ex.video_url ? 'Video' : '+ Video'}
+                    <Tv className="w-3 h-3" /> {(ex.video_urls && ex.video_urls.length > 0) ? `Video (${ex.video_urls.length})` : '+ Video'}
                   </button>
                   <button 
                     onClick={() => setActiveTab(t => t === 'group' ? 'main' : 'group')}
@@ -798,16 +1104,16 @@ function ExerciseItem({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Recupero rip. (s)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Recupero post es. (s)</label>
                     <input 
                       type="number" 
                       className={inputClasses}
-                      value={ex.rest_between_reps_seconds || 0}
-                      onChange={(e) => onUpdate({ rest_between_reps_seconds: parseInt(e.target.value) || 0 })}
+                      value={ex.rest_esercizio || 0}
+                      onChange={(e) => onUpdate({ rest_esercizio: parseInt(e.target.value) || 0 })}
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Recupero serie (s)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Recupero tra serie (s)</label>
                     <input 
                       type="number" 
                       className={inputClasses}

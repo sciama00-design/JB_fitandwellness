@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAthleteNavigation } from '../../context/AthleteNavigationContext';
@@ -14,7 +15,6 @@ import {
   Scale, 
   Plus, 
   Clock,
-  Info,
   Trash2,
   Apple,
   Calendar as CalendarIcon,
@@ -30,6 +30,7 @@ import CoachDailyLogsView from '../../components/coach/CoachDailyLogsView';
 import DietCalculator from '../../components/coach/DietCalculator';
 import Calendar from '../../components/calendar/Calendar';
 import AthleteBriefing from '../../components/coach/AthleteBriefing';
+import AthleteFocusObjectives from '../../components/coach/AthleteFocusObjectives';
 import { appointmentService } from '../../services/appointmentService';
 import { dietService } from '../../services/dietService';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -68,6 +69,7 @@ export default function AthleteDetail() {
           workout_plans!athlete_id(
             id,
             name,
+            description,
             created_at,
             active
           )
@@ -101,7 +103,7 @@ export default function AthleteDetail() {
   const { data: measurements } = useQuery({
     queryKey: ['athlete-measurements', id],
     queryFn: () => measurementService.getAthleteMeasurements(id!),
-    enabled: !!id && (activeTab === 'misure' || activeTab === 'calendario'),
+    enabled: !!id && (activeTab === 'misure' || activeTab === 'calendario' || activeTab === 'alimentazione'),
   });
 
   const { data: appointments } = useQuery({
@@ -120,7 +122,12 @@ export default function AthleteDetail() {
     mutationFn: (newMeasurement: any) => measurementService.addMeasurement(newMeasurement),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['athlete-measurements', id] });
+      toast.success('Misura salvata con successo');
     },
+    onError: (error: any) => {
+      console.error('Error saving measurement:', error);
+      toast.error('Errore nel salvataggio della misura');
+    }
   });
 
   const deletePlanMutation = useMutation({
@@ -242,19 +249,11 @@ export default function AthleteDetail() {
                 </div>
               </div>
 
-              <div className="glass-card p-10 rounded-[3rem] border-white/5 flex flex-col items-center justify-center text-center space-y-6">
-                <div className="w-20 h-20 bg-muted/10 rounded-[2rem] flex items-center justify-center border border-white/5">
-                  <Info className="w-10 h-10 text-muted-foreground opacity-20" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-lg font-black text-foreground italic uppercase tracking-tight">Focus & Obiettivi</p>
-                  <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest max-w-[200px] mx-auto opacity-50">
-                    Nessun obiettivo strategico impostato per questo atleta.
-                  </p>
-                </div>
-                <button className="h-10 px-6 glass-card rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">
-                  Imposta Obiettivi
-                </button>
+              <div className="md:col-span-2">
+                <AthleteFocusObjectives 
+                  athleteId={id!} 
+                  athleteProfile={athlete} 
+                />
               </div>
             </div>
           )}
@@ -293,12 +292,17 @@ export default function AthleteDetail() {
                           )}
                         </div>
                         <h4 className="text-2xl font-black text-foreground italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">{plan.name}</h4>
+                        {plan.description && (
+                          <p className="mt-2 text-[11px] text-muted-foreground/60 font-medium italic line-clamp-2 max-w-[85%] group-hover:text-muted-foreground transition-colors">
+                            {plan.description}
+                          </p>
+                        )}
                       </div>
 
                       <div className="relative z-10 flex items-center justify-between">
                         <button
                           onClick={(e) => handleDeletePlan(e, plan.id, plan.name)}
-                          className="w-10 h-10 glass-card rounded-xl flex items-center justify-center text-red-500/30 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                          className="w-10 h-10 glass-interactive rounded-xl flex items-center justify-center text-red-500/30 hover:text-red-500 hover:bg-red-500/10 transition-all"
                           disabled={deletePlanMutation.isPending}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -345,7 +349,7 @@ export default function AthleteDetail() {
                           </div>
                         </div>
                       </div>
-                      <div className="w-10 h-10 glass-card rounded-xl flex items-center justify-center text-muted-foreground group-hover:text-primary transition-all">
+                      <div className="w-10 h-10 glass-interactive rounded-xl flex items-center justify-center text-muted-foreground group-hover:text-primary transition-all">
                         <ExternalLink className="w-4 h-4" />
                       </div>
                     </div>
@@ -409,7 +413,7 @@ export default function AthleteDetail() {
                               <td className="px-8 py-6 text-foreground font-black italic opacity-80">{m.waist || '-'}</td>
                               <td className="px-8 py-6 text-foreground font-black italic opacity-80">{m.hips || '-'}</td>
                               <td className="px-8 py-6 text-right">
-                                <button className="w-10 h-10 glass-card rounded-xl flex items-center justify-center text-muted-foreground group-hover:text-primary transition-all">
+                                <button className="w-10 h-10 glass-interactive rounded-xl flex items-center justify-center text-muted-foreground group-hover:text-primary transition-all">
                                   <ExternalLink className="w-4 h-4" />
                                 </button>
                               </td>
@@ -493,8 +497,9 @@ export default function AthleteDetail() {
                    activityLevel: athlete.activity_level,
                    deficit: athlete.target_deficit,
                    ...dietPlan,
-                   selections: dietPlan.selections
-                 } : undefined} 
+                 } : undefined}
+                 athleteProfile={athlete}
+                 measurements={measurements}
                />
             </div>
           )}
@@ -505,7 +510,7 @@ export default function AthleteDetail() {
         athleteId={id!}
         isOpen={isAddMeasurementOpen}
         onClose={() => setIsAddMeasurementOpen(false)}
-        onAdd={(data) => addMeasurementMutation.mutate(data)}
+        onAdd={async (data) => { await addMeasurementMutation.mutateAsync(data); }}
       />
 
       {selectedSessionId && (

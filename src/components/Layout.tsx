@@ -12,13 +12,13 @@ import {
   Apple, 
   LayoutDashboard,
   Menu,
-  X,
   PanelLeftOpen
 } from 'lucide-react';
 import { MobileBottomNav } from './layout/MobileBottomNav';
 import { DesktopSidebar } from './layout/DesktopSidebar';
 import { useAthleteNavigation } from '../context/AthleteNavigationContext';
 import { ATHLETE_TABS } from '../pages/coach/AthleteDetail';
+import { Drawer as VaulDrawer } from 'vaul';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { Outlet, Navigate, Link } from 'react-router-dom';
@@ -181,61 +181,55 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
           )}
         </AnimatePresence>
 
-        {/* Mobile Athlete Menu Trigger (Floating) */}
-        <AnimatePresence>
-          {activeAthlete && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              onClick={() => setIsMobileAthleteMenuOpen(!isMobileAthleteMenuOpen)}
-              className="md:hidden fixed top-4 right-4 z-40 w-10 h-10 rounded-xl bg-primary/10 backdrop-blur-xl border border-primary/20 shadow-xl flex items-center justify-center text-primary"
-            >
-              {isMobileAthleteMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {/* Mobile Athlete Menu Overlay */}
-        <AnimatePresence>
-          {isMobileAthleteMenuOpen && activeAthlete && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setIsMobileAthleteMenuOpen(false)}
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[45] md:hidden"
-              />
-              <motion.div
-                initial={{ x: '-100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '-100%' }}
-                className="fixed top-0 left-0 bottom-0 w-80 bg-card/90 backdrop-blur-2xl z-50 md:hidden border-r border-white/5 p-6 flex flex-col"
+        {/* Mobile Athlete Menu — Vaul Drawer Bottom Sheet */}
+        {activeAthlete && (
+          <>
+            <AnimatePresence>
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={() => setIsMobileAthleteMenuOpen(true)}
+                className="md:hidden fixed top-4 right-4 z-40 w-10 h-10 rounded-xl bg-primary/[0.08] backdrop-blur-xl border border-primary/15 shadow-xl flex items-center justify-center text-primary"
               >
-                <div className="mb-8">
-                  <p className="text-[10px] uppercase font-black text-primary/60 tracking-[0.3em] mb-1">Menu Atleta</p>
-                  <h3 className="text-2xl font-black text-foreground italic uppercase tracking-tighter">
-                    {activeAthlete.name}
-                  </h3>
-                </div>
-                <nav className="space-y-2 overflow-y-auto custom-scrollbar">
-                  {athleteNavItems.map((item) => (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      onClick={() => setIsMobileAthleteMenuOpen(false)}
-                      className="flex items-center gap-4 px-6 py-4 rounded-2xl bg-white/5 border border-white/5 text-sm font-bold tracking-widest uppercase text-muted-foreground active:text-primary active:bg-primary/10"
-                    >
-                      <item.icon size={18} className="text-primary" />
-                      {item.label}
-                    </Link>
-                  ))}
-                </nav>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+                <Menu size={20} />
+              </motion.button>
+            </AnimatePresence>
+
+            <VaulDrawer.Root open={isMobileAthleteMenuOpen} onOpenChange={setIsMobileAthleteMenuOpen}>
+              <VaulDrawer.Portal>
+                <VaulDrawer.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[45] md:hidden" />
+                <VaulDrawer.Content className="fixed bottom-0 left-0 right-0 z-50 md:hidden flex flex-col rounded-t-[1.75rem] bg-card/95 backdrop-blur-2xl border-t border-white/[0.08] shadow-2xl max-h-[85vh]">
+                  {/* Handle */}
+                  <div className="mx-auto mt-3 mb-1 h-1.5 w-12 rounded-full bg-white/10 shrink-0" />
+                  
+                  <div className="px-6 pt-4 pb-3 border-b border-white/5">
+                    <VaulDrawer.Title className="text-[10px] uppercase font-bold text-primary/50 tracking-[0.3em] mb-1">Navigazione Atleta</VaulDrawer.Title>
+                    <p className="text-xl font-black text-foreground italic uppercase tracking-tighter">
+                      {activeAthlete.name}
+                    </p>
+                  </div>
+
+                  <nav className="p-4 space-y-1.5 overflow-y-auto custom-scrollbar pb-safe">
+                    {athleteNavItems.map((item) => (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setIsMobileAthleteMenuOpen(false)}
+                        className="flex items-center gap-4 px-5 py-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.04] text-sm font-semibold tracking-widest uppercase text-muted-foreground active:text-primary active:bg-primary/[0.08] transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-primary/[0.08] flex items-center justify-center">
+                          <item.icon size={16} className="text-primary" />
+                        </div>
+                        {item.label}
+                      </Link>
+                    ))}
+                  </nav>
+                </VaulDrawer.Content>
+              </VaulDrawer.Portal>
+            </VaulDrawer.Root>
+          </>
+        )}
 
         {/* Main Content */}
         <main

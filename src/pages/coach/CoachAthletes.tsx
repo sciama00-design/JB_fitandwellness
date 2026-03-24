@@ -133,7 +133,7 @@ export default function CoachAthletes() {
                       </div>
                     </div>
                   </div>
-                  <div className="w-10 h-10 glass-card rounded-xl flex items-center justify-center text-muted-foreground group-hover:bg-primary group-hover:text-white transition-all">
+                  <div className="w-10 h-10 glass-interactive rounded-xl flex items-center justify-center text-muted-foreground group-hover:bg-primary group-hover:text-white transition-all">
                     <ExternalLink className="w-4 h-4" />
                   </div>
                 </div>
