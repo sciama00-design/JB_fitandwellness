@@ -892,7 +892,6 @@ export default function WorkoutPlanEditor({
         <CoachPreferencesChat />
         <VoiceCompiler 
           onResult={handleVoiceResult} 
-          libraryContext={allLibraryExercises || []}
           existingMappings={mappings || []}
           currentPlan={exercises}
           preferences={preferences || []}

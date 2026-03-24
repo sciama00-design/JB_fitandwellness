@@ -5,7 +5,6 @@ import {
   Users, 
   Plus, 
   Loader2, 
-  Clock,
   Dumbbell,
   Activity,
   ChevronRight,
@@ -89,7 +88,7 @@ export default function CoachDashboard() {
 
   const itemVariants = {
     hidden: { opacity: 0, y: 16 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] as any } }
   };
 
   const filteredLogs = latestLogs?.filter((session: any) => 
@@ -111,7 +110,7 @@ export default function CoachDashboard() {
       <motion.div 
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as any }}
         className="flex flex-col sm:flex-row sm:items-end justify-between gap-6"
       >
         <div>

@@ -6,13 +6,12 @@ import { cn } from '../../lib/utils';
 
 interface VoiceCompilerProps {
   onResult: (result: { exercises: any[], transcription?: string, action_taken?: 'append' | 'modify' }) => void;
-  libraryContext: any[];
   existingMappings: any[];
   currentPlan?: any[];
   preferences?: any[];
 }
 
-export default function VoiceCompiler({ onResult, libraryContext, existingMappings, currentPlan = [], preferences = [] }: VoiceCompilerProps) {
+export default function VoiceCompiler({ onResult, existingMappings, currentPlan = [], preferences = [] }: VoiceCompilerProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -64,7 +63,6 @@ export default function VoiceCompiler({ onResult, libraryContext, existingMappin
         
         const result = await geminiService.processWorkoutAudio(
           base64Audio,
-          libraryContext,
           existingMappings,
           currentPlan,
           preferences
