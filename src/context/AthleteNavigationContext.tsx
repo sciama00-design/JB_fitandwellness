@@ -17,6 +17,8 @@ interface AthleteNavigationContextType {
   expandedBranches: string[];
   setExpandedBranches: React.Dispatch<React.SetStateAction<string[]>>;
   toggleBranch: (id: string) => void;
+  isNavVisible: boolean;
+  setIsNavVisible: (visible: boolean) => void;
 }
 
 const AthleteNavigationContext = createContext<AthleteNavigationContextType | undefined>(undefined);
@@ -31,6 +33,7 @@ export function AthleteNavigationProvider({ children }: { children: ReactNode })
     return window.innerWidth >= 768; // Default to closed on mobile
   });
   const [expandedBranches, setExpandedBranches] = useState<string[]>([]);
+  const [isNavVisible, setIsNavVisible] = useState(true);
 
   useEffect(() => {
     localStorage.setItem('jb_sidebar_open', JSON.stringify(isSidebarOpen));
@@ -56,7 +59,9 @@ export function AthleteNavigationProvider({ children }: { children: ReactNode })
       setIsSidebarOpen,
       expandedBranches,
       setExpandedBranches,
-      toggleBranch
+      toggleBranch,
+      isNavVisible,
+      setIsNavVisible
     }}>
       {children}
     </AthleteNavigationContext.Provider>

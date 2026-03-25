@@ -2,12 +2,15 @@ import { supabase } from '../lib/supabase';
 import type { CoachPreference } from '../types/database';
 
 export const coachPreferenceService = {
-  async getPreferences(coachId: string) {
-    const { data, error } = await supabase
+  async getPreferences(coachId: string, category: 'workout' | 'nutrition' | 'strategic' = 'workout') {
+    let query = supabase
       .from('coach_preferences')
       .select('*')
       .eq('coach_id', coachId)
+      .eq('category', category)
       .order('created_at', { ascending: true });
+    
+    const { data, error } = await query;
     
     if (error) throw error;
     return data as CoachPreference[];

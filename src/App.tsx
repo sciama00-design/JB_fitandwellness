@@ -14,8 +14,10 @@ import AthleteDashboard from './pages/athlete/AthleteDashboard'
 import WorkoutSession from './pages/athlete/WorkoutSession'
 import AIMealPlanner from './pages/athlete/AIMealPlanner'
 import WeeklyPlanner from './pages/athlete/WeeklyPlanner'
+import AthleteCalendar from './pages/athlete/AthleteCalendar'
 import CoachDietGenerator from './pages/coach/CoachDietGenerator'
 import CoachCalendar from './pages/coach/CoachCalendar'
+import AiOptions from './pages/coach/AiOptions'
 import { Loader2 } from 'lucide-react'
 import { Toaster } from 'sonner'
 
@@ -79,6 +81,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requiredRole?: 'coac
 }
 
 import { AthleteNavigationProvider } from './context/AthleteNavigationContext'
+import { AIModelProvider } from './context/AIModelContext'
 
 function App() {
   const { user, role, initialized, loading } = useAuth()
@@ -111,121 +114,135 @@ function App() {
         richColors
         closeButton
       />
-      <AthleteNavigationProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={role === 'coach' ? '/coach' : '/athlete'} replace />} />
-          
-          <Route path="/coach" element={
-            <ProtectedRoute requiredRole="coach">
-              <CoachDashboard />
-            </ProtectedRoute>
-          } />
+      <AIModelProvider>
+        <AthleteNavigationProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={!user ? <LoginPage /> : <Navigate to={role === 'coach' ? '/coach' : '/athlete'} replace />} />
+            
+            <Route path="/coach" element={
+              <ProtectedRoute requiredRole="coach">
+                <CoachDashboard />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/coach/plans/edit/:planId" element={
-            <ProtectedRoute requiredRole="coach">
-              <PlanEditor />
-            </ProtectedRoute>
-          } />
+            <Route path="/coach/plans/edit/:planId" element={
+              <ProtectedRoute requiredRole="coach">
+                <PlanEditor />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/coach/athletes" element={
-            <ProtectedRoute requiredRole="coach">
-              <CoachAthletes />
-            </ProtectedRoute>
-          } />
+            <Route path="/coach/athletes" element={
+              <ProtectedRoute requiredRole="coach">
+                <CoachAthletes />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/coach/library" element={
-            <ProtectedRoute requiredRole="coach">
-              <CoachLibrary />
-            </ProtectedRoute>
-          } />
+            <Route path="/coach/library" element={
+              <ProtectedRoute requiredRole="coach">
+                <CoachLibrary />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/coach/plans/new" element={
-            <ProtectedRoute requiredRole="coach">
-              <PlanEditor />
-            </ProtectedRoute>
-          } />
+            <Route path="/coach/plans/new" element={
+              <ProtectedRoute requiredRole="coach">
+                <PlanEditor />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/coach/diet" element={
-            <ProtectedRoute requiredRole="coach">
-              <CoachDietGenerator />
-            </ProtectedRoute>
-          } />
+            <Route path="/coach/diet" element={
+              <ProtectedRoute requiredRole="coach">
+                <CoachDietGenerator />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/coach/calendar" element={
-            <ProtectedRoute requiredRole="coach">
-              <CoachCalendar />
-            </ProtectedRoute>
-          } />
+            <Route path="/coach/calendar" element={
+              <ProtectedRoute requiredRole="coach">
+                <CoachCalendar />
+              </ProtectedRoute>
+            } />
 
-
-          <Route path="/coach/templates/new" element={
-            <ProtectedRoute requiredRole="coach">
-              <TemplateEditor />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/coach/templates/edit/:templateId" element={
-            <ProtectedRoute requiredRole="coach">
-              <TemplateEditor />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/coach/athletes/:id" element={
-            <ProtectedRoute requiredRole="coach">
-              <AthleteDetail />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/library" element={
-            <ProtectedRoute requiredRole="coach">
-              <ExerciseLibrary />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/athlete" element={
-            <ProtectedRoute requiredRole="athlete">
-              <AthleteDashboard />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/athlete/workout/:planId" element={
-            <ProtectedRoute requiredRole="athlete">
-              <WorkoutSession />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/athlete/nutrition" element={
-            <ProtectedRoute requiredRole="athlete">
-              <AIMealPlanner />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/athlete/planner" element={
-            <ProtectedRoute requiredRole="athlete">
-              <WeeklyPlanner />
-            </ProtectedRoute>
-          } />
+            <Route path="/coach/ai-options" element={
+              <ProtectedRoute requiredRole="coach">
+                <AiOptions />
+              </ProtectedRoute>
+            } />
 
 
-          <Route path="/" element={
-            user ? (
-              role ? (
-                <Navigate to={role === 'coach' ? '/coach' : '/athlete'} replace />
-              ) : (
-                loading ? (
-                  <div className="min-h-screen flex items-center justify-center bg-slate-950">
-                    <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
-                  </div>
+            <Route path="/coach/templates/new" element={
+              <ProtectedRoute requiredRole="coach">
+                <TemplateEditor />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/coach/templates/edit/:templateId" element={
+              <ProtectedRoute requiredRole="coach">
+                <TemplateEditor />
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/coach/athletes/:id" element={
+              <ProtectedRoute requiredRole="coach">
+                <AthleteDetail />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/library" element={
+              <ProtectedRoute requiredRole="coach">
+                <ExerciseLibrary />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/athlete" element={
+              <ProtectedRoute requiredRole="athlete">
+                <AthleteDashboard />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/athlete/workout/:planId" element={
+              <ProtectedRoute requiredRole="athlete">
+                <WorkoutSession />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/athlete/nutrition" element={
+              <ProtectedRoute requiredRole="athlete">
+                <AIMealPlanner />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/athlete/planner" element={
+              <ProtectedRoute requiredRole="athlete">
+                <WeeklyPlanner />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/athlete/calendar" element={
+              <ProtectedRoute requiredRole="athlete">
+                <AthleteCalendar />
+              </ProtectedRoute>
+            } />
+
+
+            <Route path="/" element={
+              user ? (
+                role ? (
+                  <Navigate to={role === 'coach' ? '/coach' : '/athlete'} replace />
                 ) : (
-                  <ProtectedRoute><div /></ProtectedRoute>
+                  loading ? (
+                    <div className="min-h-screen flex items-center justify-center bg-slate-950">
+                      <Loader2 className="w-10 h-10 animate-spin text-emerald-500" />
+                    </div>
+                  ) : (
+                    <ProtectedRoute><div /></ProtectedRoute>
+                  )
                 )
-              )
-            ) : <Navigate to="/login" replace />
-          } />
-        </Routes>
-      </BrowserRouter>
-    </AthleteNavigationProvider>
+              ) : <Navigate to="/login" replace />
+            } />
+          </Routes>
+        </BrowserRouter>
+      </AthleteNavigationProvider>
+    </AIModelProvider>
   </>
 )
 }

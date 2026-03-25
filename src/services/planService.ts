@@ -71,6 +71,7 @@ export const planService = {
       group_id: ex.group_id,
       group_name: ex.group_name,
       group_iterations: ex.group_iterations || 1,
+      is_time_based: ex.is_time_based || false,
       plan_id: newPlan.id,
     }));
  
@@ -117,6 +118,7 @@ export const planService = {
       group_id: ex.group_id,
       group_name: ex.group_name,
       group_iterations: ex.group_iterations || 1,
+      is_time_based: ex.is_time_based || false,
       plan_id: planId,
     }));
  
@@ -176,6 +178,7 @@ export const planService = {
         group_name: ex.group_name,
         group_iterations: ex.group_iterations,
         target_reps_detail: ex.target_reps_detail,
+        is_time_based: ex.is_time_based,
       };
     });
 

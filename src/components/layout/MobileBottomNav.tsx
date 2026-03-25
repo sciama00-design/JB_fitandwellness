@@ -20,10 +20,15 @@ export function MobileBottomNav({ items, isVisible, role }: MobileBottomNavProps
     const location = useLocation();
 
     const isActiveItem = (item: NavItem) => {
-        if (role === 'athlete' && item.tabId) {
-            const params = new URLSearchParams(location.search);
-            const activeTab = params.get('tab') || 'home';
-            return location.pathname === '/athlete' && activeTab === item.tabId;
+        if (role === 'athlete') {
+            if (item.tabId === 'calendar') {
+                return location.pathname === '/athlete/calendar';
+            }
+            if (item.tabId) {
+                const params = new URLSearchParams(location.search);
+                const activeTab = params.get('tab') || 'home';
+                return location.pathname === '/athlete' && activeTab === item.tabId;
+            }
         }
         return location.pathname === item.to || (item.to !== '/coach' && item.to !== '/athlete' && location.pathname.startsWith(item.to));
     };

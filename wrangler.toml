@@ -1,0 +1,18 @@
+# Cloudflare Pages Configuration
+name = "jb-fitandwellness"
+compatibility_date = "2024-03-25"
+
+[build]
+command = "npm run build"
+output_dir = "dist"
+
+[build.upload]
+format = "assets"
+
+[vars]
+# These are build-time variables for Vite. 
+# Note: For Cloudflare Pages, it's better to set these in the Dashboard
+# to keep them secret and manageable per environment.
+VITE_SUPABASE_URL = ""
+VITE_SUPABASE_ANON_KEY = ""
+VITE_GEMINI_API_KEY = ""

@@ -75,6 +75,7 @@ export default function PlanEditor() {
       athletes={athletes || []}
       onSubmit={(data) => saveMutation.mutateAsync(data)}
       isSubmitting={saveMutation.isPending}
+      onBack={() => navigate(-1)}
     />
   );
 }

@@ -49,6 +49,7 @@ export default function TemplateEditor() {
       onSubmit={(data) => saveMutation.mutateAsync(data)}
       isSubmitting={saveMutation.isPending}
       isTemplate={true}
+      onBack={() => navigate(-1)}
     />
   );
 }

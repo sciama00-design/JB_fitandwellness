@@ -18,7 +18,6 @@ import {
   ArrowRight,
   Eye,
   CheckCircle2,
-  Apple,
   Trash2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -28,12 +27,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import WorkoutPlanView from '../../components/athlete/WorkoutPlanView';
 import WorkoutSessionDetailModal from '../../components/workout/WorkoutSessionDetailModal';
 import DailyCheckInModal from '../../components/athlete/DailyCheckInModal';
-import { measurementService } from '../../services/measurementService';
-import { appointmentService } from '../../services/appointmentService';
-import Calendar from '../../components/calendar/Calendar';
 import clsx from 'clsx';
 
-type TabType = 'home' | 'train' | 'calendar';
+type TabType = 'home' | 'train';
 
 export default function AthleteDashboard() {
   const { user } = useAuth();
@@ -76,19 +72,7 @@ export default function AthleteDashboard() {
     enabled: !!user?.id,
   });
 
-  const { data: measurements, isLoading: isLoadingMeasurements } = useQuery({
-    queryKey: ['athlete-measurements', user?.id],
-    queryFn: () => measurementService.getAthleteMeasurements(user!.id),
-    enabled: !!user?.id,
-  });
-
-  const { data: appointments, isLoading: isLoadingAppointments } = useQuery({
-    queryKey: ['athlete-appointments', user?.id],
-    queryFn: () => appointmentService.getAthleteAppointments(user!.id),
-    enabled: !!user?.id,
-  });
-
-  if (isLoadingPlans || isLoadingHistory || isLoadingMeasurements || isLoadingAppointments) {
+  if (isLoadingPlans || isLoadingHistory) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -183,9 +167,9 @@ export default function AthleteDashboard() {
               ))}
             </div>
 
-            {/* Daily Check-in & Nutrition Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Daily Check-in Card */}
+            {/* Daily Check-in Grid */}
+            <div className="grid grid-cols-1 gap-6">
+              {/* Daily Check-in Card - Full Width now */}
               <motion.div variants={itemVariants} className="group">
                 <div className="card h-full flex flex-col justify-between gap-8 relative overflow-hidden">
                    <div className="flex items-center gap-5">
@@ -220,37 +204,6 @@ export default function AthleteDashboard() {
                    <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-primary/5 blur-3xl rounded-full"></div>
                 </div>
               </motion.div>
-
-              {/* Nutrition Card */}
-              <motion.div variants={itemVariants} className="group">
-                <div className="card h-full flex flex-col justify-between gap-8 relative overflow-hidden border-orange-500/10 hover:border-orange-500/30">
-                  <div className="flex items-center gap-5">
-                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-xl shadow-orange-500/20 flex items-center justify-center transform group-hover:rotate-6 transition-transform">
-                       <Apple className="w-8 h-8" />
-                     </div>
-                     <div>
-                       <h3 className="text-2xl font-black text-foreground italic">Alimentazione</h3>
-                       <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mt-1">Controllo nutrienti</p>
-                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Link 
-                      to="/athlete/nutrition"
-                      className="btn h-14 bg-secondary/50 hover:bg-secondary text-foreground rounded-2xl font-black text-[10px] tracking-widest uppercase border border-border transition-all"
-                    >
-                      Vedi Piano
-                    </Link>
-                    <Link 
-                      to="/athlete/planner"
-                      className="btn h-14 bg-orange-500 text-white hover:bg-orange-600 rounded-2xl font-black text-[10px] tracking-widest uppercase shadow-xl shadow-orange-500/20 transition-all"
-                    >
-                      Weekly Planner
-                    </Link>
-                  </div>
-                   {/* Background Decoration */}
-                   <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-orange-500/5 blur-3xl rounded-full"></div>
-                </div>
-              </motion.div>
             </div>
 
             {/* Resume / Suggestion Card */}
@@ -258,24 +211,24 @@ export default function AthleteDashboard() {
               {lastSession ? (
                 <div className="relative group">
                   <div className="absolute -inset-1 bg-gradient-to-r from-primary via-blue-500 to-accent rounded-[3rem] opacity-20 blur-2xl group-hover:opacity-40 transition duration-1000"></div>
-                  <div className="relative card p-10 sm:p-14 flex flex-col md:flex-row items-center justify-between gap-12 overflow-hidden">
-                    <div className="space-y-6 text-center md:text-left relative z-10">
+                  <div className="relative card p-8 sm:p-14 flex flex-col md:flex-row items-center justify-between gap-8 sm:gap-12 overflow-hidden">
+                    <div className="space-y-4 sm:y-6 text-center md:text-left relative z-10">
                       <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.3em] mb-2 border border-primary/20 backdrop-blur-md">
                         Next Mission
                       </div>
-                      <h2 className="text-5xl font-black text-foreground leading-[0.9] italic tracking-tighter uppercase">
+                      <h2 className="text-3xl sm:text-5xl font-black text-foreground leading-[0.9] italic tracking-tighter uppercase">
                         {(lastSession.workout_plans as any)?.name}
                       </h2>
-                      <p className="text-muted-foreground font-medium text-base tracking-wide opacity-70">
+                      <p className="text-muted-foreground font-medium text-sm sm:text-base tracking-wide opacity-70">
                         Ultima sessione completata {formatDistanceToNow(new Date(lastSession.started_at), { addSuffix: true, locale: it })}.<br className="hidden sm:block" /> Pronto a superare i tuoi limiti?
                       </p>
                     </div>
                     <Link 
                       to={`/athlete/workout/${(lastSession.workout_plans as any)?.id}`}
-                      className="btn btn-primary h-24 px-12 rounded-[2rem] shadow-[0_20px_50px_rgba(6,182,212,0.3)] flex items-center gap-6 text-2xl font-black transform hover:scale-105 active:scale-95 transition-all w-full md:w-auto overflow-hidden group/btn italic relative z-10"
+                      className="btn btn-primary h-20 sm:h-24 px-8 sm:px-12 rounded-[1.5rem] sm:rounded-[2rem] shadow-[0_20px_50px_rgba(6,182,212,0.3)] flex items-center gap-4 sm:gap-6 text-xl sm:text-2xl font-black transform hover:scale-105 active:scale-95 transition-all w-full md:w-auto overflow-hidden group/btn italic relative z-10"
                     >
                       <span className="relative z-10">START SESSION</span>
-                      <ArrowRight className="w-8 h-8 group-hover/btn:translate-x-3 transition-transform relative z-10" />
+                      <ArrowRight className="w-6 h-6 sm:w-8 sm:h-8 group-hover/btn:translate-x-3 transition-transform relative z-10" />
                       <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0 group-hover:opacity-20 transition-opacity"></div>
                     </Link>
                     
@@ -304,12 +257,12 @@ export default function AthleteDashboard() {
             <div className="space-y-6">
               <div className="flex items-center justify-between px-2">
                 <h3 className="text-2xl font-black text-foreground italic tracking-tight">Attività Recente</h3>
-                <button 
-                  onClick={() => setSearchParams({ tab: 'calendar' })} 
+                <Link 
+                  to="/athlete/calendar" 
                   className="text-xs font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors"
                 >
                   Vedi Archivio
-                </button>
+                </Link>
               </div>
               <div className="grid grid-cols-1 gap-4">
                 {history?.slice(0, 3).map((session, idx) => (
@@ -334,7 +287,7 @@ export default function AthleteDashboard() {
                     <div className="flex items-center gap-3">
                        <button
                          onClick={(e) => handleDeleteSession(e, session.id)}
-                         className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                         className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all md:opacity-0 md:group-hover:opacity-100"
                          title="Elimina"
                        >
                          <Trash2 className="w-5 h-5" />
@@ -361,14 +314,14 @@ export default function AthleteDashboard() {
             exit="hidden"
             className="space-y-8"
           >
-            <header className="mb-10">
-              <h2 className="text-3xl font-black text-foreground tracking-tight flex items-center gap-4 italic uppercase">
-                <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20">
-                  <Dumbbell className="text-primary w-8 h-8" />
+            <header className="mb-6 sm:mb-10">
+              <h2 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight flex items-center gap-3 sm:gap-4 italic uppercase">
+                <div className="p-2 sm:p-3 bg-primary/10 rounded-xl sm:rounded-2xl border border-primary/20">
+                  <Dumbbell className="text-primary w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 Le tue Schede
               </h2>
-              <p className="text-muted-foreground text-xs font-black uppercase tracking-[0.2em] mt-3 opacity-60">Programma personalizzato dal tuo coach</p>
+              <p className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] mt-3 opacity-60">Programma personalizzato dal tuo coach</p>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
@@ -381,34 +334,34 @@ export default function AthleteDashboard() {
                   <motion.div 
                     key={plan.id} 
                     variants={itemVariants}
-                    className="card group hover:scale-[1.02] transition-all flex flex-col gap-8 relative overflow-hidden"
+                    className="card group hover:scale-[1.02] transition-all flex flex-col gap-6 sm:gap-8 relative overflow-hidden p-6 sm:p-8"
                   >
-                    <div className="flex-1 space-y-4">
-                      <h3 className="text-3xl font-black text-foreground italic leading-none tracking-tight">{plan.name}</h3>
-                      <p className="text-sm text-muted-foreground font-medium line-clamp-2 leading-relaxed opacity-80">
+                    <div className="flex-1 space-y-3 sm:space-y-4">
+                      <h3 className="text-2xl sm:text-3xl font-black text-foreground italic leading-none tracking-tight">{plan.name}</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground font-medium line-clamp-2 leading-relaxed opacity-80">
                         {plan.description || "Allenamento intensivo progettato per massimizzare i tuoi risultati."}
                       </p>
                     </div>
 
-                      <div className="flex items-center gap-4 pt-6 border-t border-border">
+                      <div className="flex items-center gap-4 pt-4 sm:pt-6 border-t border-border">
                         <div className="flex flex-col flex-1">
-                          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-50">Ultimo aggiornamento</span>
-                          <span className="text-xs font-black text-foreground italic mt-1 uppercase tracking-wider">
+                          <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-50">Ultimo aggiornamento</span>
+                          <span className="text-[10px] sm:text-xs font-black text-foreground italic mt-1 uppercase tracking-wider">
                             {formatDistanceToNow(new Date(plan.created_at), { addSuffix: true, locale: it })}
                           </span>
                         </div>
-                        <div className="flex gap-3">
+                        <div className="flex gap-2 sm:gap-3">
                           <button 
                             onClick={() => setViewingPlanId(plan.id)}
-                            className="btn h-14 w-14 bg-secondary/50 hover:bg-secondary text-foreground rounded-2xl flex items-center justify-center border border-border transition-all hover:scale-110 active:scale-95"
+                            className="btn h-12 w-12 sm:h-14 sm:w-14 bg-secondary/50 hover:bg-secondary text-foreground rounded-xl sm:rounded-2xl flex items-center justify-center border border-border transition-all hover:scale-110 active:scale-95"
                           >
-                            <Eye className="w-6 h-6 opacity-60" />
+                            <Eye className="w-5 h-5 sm:w-6 sm:h-6 opacity-60" />
                           </button>
                           <Link 
                             to={`/athlete/workout/${plan.id}`}
-                            className="btn btn-primary h-14 w-14 rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 hover:scale-110 active:scale-95 transition-all"
+                            className="btn btn-primary h-12 w-12 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 hover:scale-110 active:scale-95 transition-all"
                           >
-                            <Play className="w-7 h-7 fill-current ml-1" />
+                            <Play className="w-6 h-6 sm:w-7 sm:h-7 fill-current ml-1" />
                           </Link>
                         </div>
                       </div>
@@ -422,37 +375,6 @@ export default function AthleteDashboard() {
           </motion.div>
         )}
 
-        {/* --- CALENDAR TAB --- */}
-        {activeTab === 'calendar' && (
-          <motion.div 
-            key="calendar"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            className="space-y-8"
-          >
-            <header className="mb-10">
-              <h1 className="text-3xl font-black text-foreground tracking-tight flex items-center gap-4 italic uppercase">
-                <div className="p-3 bg-primary/10 rounded-2xl border border-primary/20 transform -rotate-12 transition-transform hover:rotate-0">
-                  <CalendarIcon className="text-primary w-8 h-8" />
-                </div>
-                Percorso & Archivio
-              </h1>
-              <p className="text-muted-foreground text-xs font-black uppercase tracking-[0.2em] mt-3 opacity-60">Allenamenti, misurazioni e appuntamenti</p>
-            </header>
-
-            <motion.div variants={itemVariants} className="glass-card p-4 rounded-[2.5rem] bg-card/30">
-              <Calendar 
-                sessions={history}
-                measurements={measurements}
-                appointments={appointments}
-                onViewSession={(id) => setViewingSessionId(id)}
-                onDeleteSession={(id) => handleDeleteSession(null, id)}
-              />
-            </motion.div>
-          </motion.div>
-        )}
 
       </AnimatePresence>
 

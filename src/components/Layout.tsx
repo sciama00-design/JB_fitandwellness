@@ -6,13 +6,11 @@ import {
   Home, 
   Users, 
   Calendar as CalendarIcon, 
-  Calculator, 
   BookOpen, 
   Dumbbell, 
-  Apple, 
-  LayoutDashboard,
   Menu,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Sparkles
 } from 'lucide-react';
 import { MobileBottomNav } from './layout/MobileBottomNav';
 import { DesktopSidebar } from './layout/DesktopSidebar';
@@ -25,17 +23,18 @@ import { Outlet, Navigate, Link } from 'react-router-dom';
 
 export default function Layout({ children }: { children?: React.ReactNode }) {
   const { loading, user, role, signOut, initialized } = useAuth();
-  const { 
-    activeAthlete, 
+  const {
+    activeAthlete,
     athleteList,
     setAthleteList,
     isSidebarOpen,
     setIsSidebarOpen,
     expandedBranches,
     setExpandedBranches,
-    toggleBranch
+    toggleBranch,
+    isNavVisible,
+    setIsNavVisible
   } = useAthleteNavigation();
-  const [isNavVisible, setIsNavVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isMobileAthleteMenuOpen, setIsMobileAthleteMenuOpen] = useState(false);
 
@@ -103,7 +102,7 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, [lastScrollY, setIsNavVisible]);
 
   if (loading || !initialized) {
     return (
@@ -121,16 +120,14 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
     { to: '/coach', icon: Home, label: 'Home' },
     { to: '/coach/athletes', icon: Users, label: 'Atleti' },
     { to: '/coach/calendar', icon: CalendarIcon, label: 'Calendario' },
-    { to: '/coach/diet', icon: Calculator, label: 'Dieta' },
     { to: '/coach/library', icon: BookOpen, label: 'Libreria' },
+    { to: '/coach/ai-options', icon: Sparkles, label: 'Ai Options' },
   ];
 
   const navItemsAthlete = [
     { to: '/athlete?tab=home', icon: Home, label: 'Home', tabId: 'home' },
     { to: '/athlete?tab=train', icon: Dumbbell, label: 'Allenati', tabId: 'train' },
-    { to: '/athlete?tab=calendar', icon: CalendarIcon, label: 'Calendario', tabId: 'calendar' },
-    { to: '/athlete/nutrition', icon: Apple, label: 'Cibo' },
-    { to: '/athlete/planner', icon: LayoutDashboard, label: 'Planner' },
+    { to: '/athlete/calendar', icon: CalendarIcon, label: 'Calendario', tabId: 'calendar' },
   ];
 
   const navItems = role === 'coach' ? navItemsCoach : navItemsAthlete;
@@ -143,7 +140,7 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
   })) : [];
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30 overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/30 overflow-x-clip">
       <AnimatePresence>
         {isSidebarOpen && (
           <DesktopSidebar

@@ -2,12 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const SUPABASE_URL = "https://pgwfaiwvtwwuebisatqp.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnd2ZhaXd2dHd3dWViaXNhdHFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMDM0MjMsImV4cCI6MjA4OTU3OTQyM30.1C2-LoduevSK2z0loZXt9afUvHuDF8lUQ83n3grDAko";
-const GEMINI_KEY = "AIzaSyA2jCtUgvxM1vLHD1x949lIy1ZbziexDT8";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnd2ZhaXd2dHd3dWViaXNhdHFwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDAwMzQyMywiZXhwIjoyMDg5NTc5NDIzfQ.evCUqdOkmPV_NTa21mADUOImg7mH3Cvqo6GGdiZN-r0";
+const GEMINI_KEY = "AIzaSyBXmzGn98nzpkAxwuqrG0flFyDU4tK-bFY";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const genAI = new GoogleGenerativeAI(GEMINI_KEY);
-const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-2-preview" });
+const embedModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 
 const buildDenseExerciseString = (ex) => {
   return [
@@ -45,7 +45,10 @@ async function run() {
     
     while (!success && retries > 0) {
       try {
-        const result = await embedModel.embedContent(text);
+        const result = await embedModel.embedContent({
+          content: { role: 'user', parts: [{ text }] },
+          outputDimensionality: 768
+        });
         const embedding = result.embedding.values;
         
         const { error: updError } = await supabase
@@ -67,13 +70,19 @@ async function run() {
           console.error(`Errore embedding DEFINITIVO ${ex.name}:`, e.message);
         } else {
           console.log(`Ritento ${ex.name}... (mancano ${retries})`);
-          await new Promise(r => setTimeout(r, 1000));
+          await new Promise(r => setTimeout(r, 2000));
         }
       }
     }
     
-    // Rate limit manuale per stare nei 100 RPM di Gemini Embedding 1
-    await new Promise(r => setTimeout(r, 650)); 
+    // Pausa extra ogni 50 esercizi
+    if ((i+1) % 50 === 0) {
+      console.log("Pausa di raffreddamento (5s)...");
+      await new Promise(r => setTimeout(r, 5000));
+    }
+
+    // Delay base di 1 secondo tra le richieste
+    await new Promise(r => setTimeout(r, 1000)); 
   }
   
   console.log("Fine popolamento.");

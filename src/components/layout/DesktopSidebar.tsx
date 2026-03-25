@@ -9,6 +9,7 @@ import {
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip } from '../ui/Tooltip';
+import { ModelSelector } from '../ai/ModelSelector';
 
 interface NavItem {
     to: string;
@@ -230,6 +231,18 @@ export function DesktopSidebar({
                         );
                     })}
                 </nav>
+            </div>
+
+            {/* AI Model Selector */}
+            <div className="px-6 mb-6">
+                <div className="flex items-center justify-between mb-2 px-1">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 italic">AI Engine</p>
+                    <div className="flex items-center gap-1">
+                        <div className="w-1 h-1 rounded-full bg-primary/40" />
+                        <div className="w-1 h-1 rounded-full bg-primary/20" />
+                    </div>
+                </div>
+                <ModelSelector variant="minimal" className="w-full" />
             </div>
 
             {/* Profile Section */}

@@ -20,6 +20,25 @@ import { tools as toolsPlanner } from './ai/agents/planner/skill_guided_compilat
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(API_KEY);
 
+export const GEMINI_MODELS = [
+  'gemini-2.5-flash-lite',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-3-flash-preview',
+  'gemini-2.5-flash'
+] as const;
+
+export type GeminiModelType = typeof GEMINI_MODELS[number];
+
+let overrideModel: GeminiModelType = (localStorage.getItem('selected_gemini_model') as GeminiModelType) || 'gemini-2.5-flash-lite';
+
+const getModel = (options?: { model?: string, tools?: any }) => {
+  const modelName = options?.model || overrideModel;
+  return genAI.getGenerativeModel({ 
+    model: modelName,
+    tools: options?.tools
+  });
+};
+
 const getTodayContext = () => {
   const now = new Date();
   const dayName = new Intl.DateTimeFormat('it-IT', { weekday: 'long' }).format(now);
@@ -45,20 +64,17 @@ export const geminiService = {
   async generateEmbedding(text: string) {
     if (!API_KEY) return null;
     try {
-      // Use the newest embedding model suggested by the user
-      const model = genAI.getGenerativeModel({ model: "gemini-embedding-2-preview" });
-      const result = await model.embedContent(text);
+      // Use gemini-embedding-001 with forced 768 dimensions to match DB schema
+      const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+      const result = await model.embedContent({
+        content: { role: 'user', parts: [{ text }] },
+        // @ts-ignore
+        outputDimensionality: 768
+      });
       return result.embedding.values;
     } catch (error) {
-      console.warn("Embedding with primary model failed, trying fallback...", error);
-      try {
-        const fallbackModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
-        const result = await fallbackModel.embedContent(text);
-        return result.embedding.values;
-      } catch (fallbackError) {
-        console.error("All embedding models failed:", fallbackError);
-        return null;
-      }
+      console.error("Error generating embedding (768 diminished):", error);
+      return null;
     }
   },
 
@@ -68,18 +84,35 @@ export const geminiService = {
       return null;
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const context = getTodayContext();
     const prompt = `
-      ${context}
-      Sei un esperto nutrizionista sportivo. 
-      Analizza i seguenti dati dell'atleta e il suo programma di allenamento per oggi.
-      Dati Atleta: ${JSON.stringify(athleteData)}
-      Allenamento Oggi: ${JSON.stringify(workoutData)}
+      ### RUOLO
+      Sei un Performance Consultant ed esperto di nutrizione sportiva.
       
-      Fornisci 3 consigli strategici brevi (max 20 parole l'uno) su come gestire l'alimentazione oggi per massimizzare la performance.
-      Rispondi in formato JSON: { "advice": ["consiglio 1", "consiglio 2", "consiglio 3"] }
+      ### CONTESTO
+      ${context}
+      
+      **Dati Atleta**: ${JSON.stringify(athleteData)}
+      **Allenamento Programmato**: ${JSON.stringify(workoutData)}
+      
+      ### COMPITO
+      Fornisci 3 consigli strategici "flash" (estremamente concisi) per massimizzare la performance di oggi. 
+      Concentrati su:
+      1. Timing dei nutrienti rispetto all'allenamento.
+      2. Idratazione o Focus mentale.
+      3. Gestione del recupero.
+
+      ### OUTPUT FORMAT
+      Rispondi ESCLUSIVAMENTE con un JSON valido.
+      { 
+        "advice": [
+          "Consiglio 1: ...", 
+          "Consiglio 2: ...", 
+          "Consiglio 3: ..."
+        ] 
+      }
     `;
 
     try {
@@ -98,7 +131,7 @@ export const geminiService = {
   async suggestRecipesForMeal(targetMacros: { kcal: number, protein: number, carbs: number, fat: number }, ppreferences: string = "") {
     if (!API_KEY) return null;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const prompt = `
       Suggerisci 3 idee di pasti veloci che rispettino circa questi macro:
@@ -124,33 +157,42 @@ export const geminiService = {
   async generateMealPlan(coachGuidelines: string | null, targetMacros: any, athletePreferences: any) {
     if (!API_KEY) return null;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const context = getTodayContext();
     const prompt = `
-      ${context}
-      Sei un esperto nutrizionista sportivo. Il tuo compito è generare un piano alimentare giornaliero (Colazione, Spuntino, Pranzo, Cena) su misura per un atleta.
+      ### RUOLO
+      Sei un esperto Nutrizionista Sportivo e Performance Coach. Il tuo compito è generare un piano alimentare giornaliero (Colazione, Spuntino, Pranzo, Cena) su misura per un atleta di alto livello.
       
-      OBIETTIVO MACRONUTRIENTI (da rispettare con tolleranza massima di ±5%):
+      ### OBIETTIVO MACRONUTRIENTI (Tolleranza ±3%)
       ${JSON.stringify(targetMacros)}
       
-      LINEE GUIDA DEL COACH STRATEGICO:
-      "${coachGuidelines || 'Nessuna specifica. Bilancia bene i macro.'}"
+      ### CONTESTO
+      ${context}
       
-      VINCOLI E PREFERENZE DELL'ATLETA:
+      **Linee Guida del Coach Strategico**:
+      "${coachGuidelines || 'Nessuna specifica. Bilancia bene i macro secondo i ritmi circadiani.'}"
+      
+      **Vincoli e Preferenze Atleta**:
       - Preferenze/Stile: ${athletePreferences?.dietary_preferences?.join(', ') || 'Nessuna'}
       - Intolleranze/Allergie: ${athletePreferences?.intolerances?.join(', ') || 'Nessuna'}
-      - Cibi non graditi: ${athletePreferences?.disliked_foods?.join(', ') || 'Nessuno'}
-      - Impegni/Orari: ${athletePreferences?.schedule_constraints || 'Nessun problema di orario'}
+      - Cibi Sgraditi: ${athletePreferences?.disliked_foods?.join(', ') || 'Nessuno'}
+      - Impegni/Orari: ${athletePreferences?.schedule_constraints || 'Senza vincoli particolari'}
       
-      REGOLE DI OUTPUT:
-      - Fornisci pasti appetitosi e ben abbinati.
-      - Rispondi ESCLUSIVAMENTE con un JSON valido strutturato in questo modo:
+      ### REGOLE DI GENERAZIONE
+      1. **Sostenibilità**: Proponi pasti appetitosi, facili da preparare e coerenti tra loro.
+      2. **Timing**: Suggerisci orari (time_hint) basandoti sugli impegni dell'atleta.
+      3. **Precisione**: La somma dei macro dei singoli alimenti DEVE corrispondere al totale del pasto e del giorno.
+      4. **Varietà**: Evita ripetizioni eccessive di fonti proteiche nello stesso giorno.
+
+      ### OUTPUT FORMAT
+      Rispondi ESCLUSIVAMENTE con un JSON valido. Includi una chiave "thinking" per spiegare la tua strategia nutrizionale per questa giornata.
       {
+        "thinking": "Analisi dei macro e scelta degli ingredienti basata sulle preferenze...",
         "meals": [
           {
-            "name": "Colazione",
-            "time_hint": "Es. 08:00 (dedurlo dagli impegni se presenti)",
+            "name": "Colazione | Spuntino | Pranzo | Cena",
+            "time_hint": "HH:MM",
             "foods": [
               { "name": "Nome alimento", "qty_grams": 50, "macros": { "kcal": 180, "p": 5, "c": 30, "f": 2 } }
             ],
@@ -176,20 +218,23 @@ export const geminiService = {
   async regenerateMeal(mealName: string, targetMealMacros: any, constraints: any, reason: string) {
     if (!API_KEY) return null;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const prompt = `
-      Voglio sostituire il pasto "${mealName}".
-      Motivo/Richiesta: "${reason}"
+      ### OBIETTIVO
+      Sostituisci il pasto "${mealName}" con un'alternativa valida.
       
-      Il nuovo pasto deve rispettare circa questi macronutrienti per mantenere il piano bilanciato:
-      ${JSON.stringify(targetMealMacros)}
+      ### MOTIVAZIONE DELLA RICHIESTA
+      "${reason}"
       
-      Ricorda di evitare questi cibi/intolleranze:
-      ${JSON.stringify(constraints)}
+      ### VINCOLI NUTRIZIONALI
+      Target Macro: ${JSON.stringify(targetMealMacros)}
+      Evita assolutamente: ${JSON.stringify(constraints)}
       
-      Rispondi ESCLUSIVAMENTE con un JSON valido:
+      ### OUTPUT FORMAT
+      Rispondi ESCLUSIVAMENTE con un JSON valido. Includi una chiave "thinking" per spiegare perché questa alternativa soddisfa la richiesta.
       {
+        "thinking": "...",
         "name": "${mealName}",
         "foods": [
           { "name": "Nome alimento", "qty_grams": 100, "macros": { "kcal": 100, "p": 20, "c": 0, "f": 2 } }
@@ -212,7 +257,7 @@ export const geminiService = {
 
   async generateNutritionEnrichment(dietPlan: any, profile: any, workoutPlan: any) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const prompt = `
       Sei un nutrizionista esperto. Arricchisci il seguente piano alimentare spiegando come si adatta alle preferenze dell'atleta e al suo allenamento.
@@ -235,17 +280,31 @@ export const geminiService = {
 
   async generateAthleteBriefing(athleteProfile: any, dietPlan: any, workoutPlan: any, recentLogs: any) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const prompt = `
-      Sei un assistente per un coach di fitness. Genera un briefing sintetico (max 150 parole) sull'atleta corrente.
-      Profilo: ${JSON.stringify(athleteProfile)}
-      Dieta: ${JSON.stringify(dietPlan)}
-      Allenamento: ${JSON.stringify(workoutPlan)}
-      Log recenti: ${JSON.stringify(recentLogs)}
+      ### RUOLO
+      Sei un Performance Analyst per un team di atleti d'élite.
       
-      Riassumi progressi, aderenza al piano e suggerisci eventuali aggiustamenti necessari. Sii diretto e professionale.
-      Usa la formattazione Markdown (grassetti, liste puntate, eventuale tabella sintetica) per rendere il briefing facile da leggere.
+      ### OBIETTIVO
+      Genera un Performance Briefing sintetico e di alto impatto visivo per il coach.
+      
+      ### DATI ATLETA
+      - **Profilo**: ${JSON.stringify(athleteProfile)}
+      - **Dieta Attuale**: ${JSON.stringify(dietPlan)}
+      - **Workout Attivo**: ${JSON.stringify(workoutPlan)}
+      - **Log Recenti (Aderenza)**: ${JSON.stringify(recentLogs)}
+      
+      ### STRUTTURA BRIEFING (Markdown)
+      1. **⚡ Stato di Forma**: Sintesi estrema dei progressi recenti.
+      2. **✅ Aderenza & Feedback**: Come sta rispondendo l'atleta ai carichi e alla dieta.
+      3. **💡 Suggerimenti Strategici**: 2-3 azioni concrete per il coach (es. "Aumenta i carbo pre-workout", "Scarico consigliato tra 1 settimana").
+      
+      ### REGOLE
+      - Sii diretto, professionale e "data-driven".
+      - Usa una tabella Markdown se utile per confrontare target vs reali.
+      - Max 150 parole.
+      - Lingua: Italiano.
     `;
 
     try {
@@ -259,27 +318,35 @@ export const geminiService = {
 
   async generateWeeklyOptimization(weekEntries: any[], dietPlan: any, activeWorkout: any, profile: any) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const context = getTodayContext();
     const prompt = `
-      ${context}
-      Sei un consulente strategico per un atleta. Ottimizza la settimana in base agli impegni inseriti.
+      ### RUOLO
+      Sei un Consulente di Ottimizzazione della Performance.
       
-      Impegni della Settimana:
+      ### CONTESTO
+      ${context}
+      
+      **Impegni della Settimana (Eventi, Cene, Viaggi)**:
       ${JSON.stringify(weekEntries)}
       
-      Piano Alimentare Base:
-      ${JSON.stringify(dietPlan)}
+      **Piani Correnti**:
+      - Alimentazione: ${JSON.stringify(dietPlan)}
+      - Allenamento: ${JSON.stringify(activeWorkout)}
+      - Profilo Atleta: ${JSON.stringify(profile)}
       
-      Piano Allenamento Attivo:
-      ${JSON.stringify(activeWorkout)}
+      ### COMPITO
+      Analizza le possibili interferenze tra vita sociale/personale e piani sportivi. Fornisci suggerimenti di adattamento pratici.
       
-      Profilo Atleta:
-      ${JSON.stringify(profile)}
+      ### STRUTTURA OUTPUT (Markdown)
+      - **🚩 Criticità**: Identifica i giorni a rischio (es. cena aziendale mercoledì).
+      - **🔄 Strategie di Adattamento**: Come spostare sessioni o gestire pasti "fuori piano" per minimizzare l'impatto.
+      - **💎 Bonus Tip**: Un consiglio motivazionale specifico per le sfide della settimana.
       
-      Analizza gli impegni (es. cene, allenamenti spostati, giorni intensi) e fornisci una lista di suggerimenti pratici e strategici per adattare alimentazione e allenamento giorno per giorno.
-      Sii sintetico, professionale e motivante in italiano.
+      ### REGOLE
+      - Tono professionale, incoraggiante e proattivo.
+      - Rispondi in Italiano.
     `;
 
 
@@ -294,7 +361,7 @@ export const geminiService = {
 
   async generateRecipe(targetKcal: number, preferences: any) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const prompt = `
       Genera una ricetta fitness di circa ${targetKcal} kcal.
@@ -333,8 +400,7 @@ export const geminiService = {
       parameters: t.parameters
     }));
 
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash-lite",
+    const model = getModel({ 
       tools: [{ functionDeclarations }] as any
     });
 
@@ -421,12 +487,11 @@ export const geminiService = {
     );
   },
 
-  async processWorkoutAudio(audioBase64: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = []) {
+  async processWorkoutAudio(audioBase64: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     // 1. First, we need the transcription to understand what the coach said
-    // We do a quick first pass with Gemini to get just the transcription
     const transcriptionPrompt = `Trascrivi fedelmente questo audio di un coach di fitness che descrive un allenamento. Rispondi solo con la trascrizione.`;
     
     let transcription = "";
@@ -438,27 +503,107 @@ export const geminiService = {
       transcription = transResult.response.text().trim();
     } catch (e) {
       console.error("Transcription failed", e);
+      return { error: "Trascrizione fallita." };
     }
 
-    // 2. Search for relevant exercises in the library via vector search
-    // We send the transcription to generate an embedding
+    if (!transcription) return { error: "Audio vuoto o non comprensibile." };
+
+    return this.processWorkoutInstructions(transcription, existingMappings, currentPlan, preferences, coachId);
+  },
+
+  async processWorkoutChat(text: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string) {
+    return this.processWorkoutInstructions(text, existingMappings, currentPlan, preferences, coachId);
+  },
+
+  async processWorkoutInstructions(instructions: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string) {
+    if (!API_KEY) return null;
+    const model = getModel();
+
+    // 1. EXTRACT EXERCISE NAMES (Pre-analysis)
+    let extractedNames: string[] = [];
+    try {
+      const extractionPrompt = `
+        Analizza queste istruzioni di allenamento: "${instructions}"
+        Estrai SOLO i nomi degli esercizi menzionati (es. "panca piana", "squat", "plank").
+        
+        REGOLE di ESTRAZIONE:
+        1. Se un esercizio è una correzione (es. "No, intendevo panca inclinata"), estrai solo il nome CORRETTO.
+        2. Normalizza i nomi: se un coach usa termini italiani comuni (es. "Pulley basso", "Panca piana", "Croci"), fornisci SIA il nome originale SIA la traduzione standard in inglese (es. "Pulley basso | Low Pulley Row", "Panca piana | Bench Press"). Questo aiuta il matching testuale.
+        3. Singolare/Plurale: Se il nome è ambiguo, fornisci entrambe le varianti (es. "crunch | crunches").
+        
+        Rispondi con una lista separata da virgole (puoi usare il pipe | all'interno degli elementi per i sinonimi). 
+        Se non trovi nulla, rispondi con "NULL".
+
+
+      `;
+      const extractionResult = await model.generateContent(extractionPrompt);
+      const extractionText = extractionResult.response.text().trim();
+      if (extractionText !== "NULL") {
+        const rawNames = extractionText.split(',').map(s => s.trim()).filter(Boolean);
+        // Appiattiamo eventuali sinonimi separati da |
+        extractedNames = rawNames.flatMap(n => n.includes('|') ? n.split('|').map(s => s.trim()) : [n]);
+      }
+
+    } catch (e) {
+      console.error("Name extraction failed:", e);
+      // Fallback: use the whole instruction as a single name
+      extractedNames = [instructions];
+    }
+
+    // 2. SEARCH FOR EACH EXTRACTED NAME
     let searchContext = "Nessun esercizio rilevante trovato nella libreria.";
-    if (transcription) {
-      const queryEmbedding = await this.generateEmbedding(transcription);
-      if (queryEmbedding) {
-        const { exerciseService } = await import('./exerciseService');
-        const similarExercises = await exerciseService.searchSimilarExercises(queryEmbedding, 0.3, 15);
-        if (similarExercises && similarExercises.length > 0) {
-          searchContext = similarExercises.map((ex: any) => `- ${ex.name_it || ex.name} (ID: ${ex.id}) [Muscoli: ${ex.muscle_group}, Attrezzatura: ${ex.equipment}]`).join('\n');
-        }
+    const allSimilarExercises: any[] = [];
+    
+    if (extractedNames.length > 0) {
+      const { exerciseService } = await import('./exerciseService');
+      
+      await Promise.all(extractedNames.map(async (name) => {
+        // Generate embedding for the specific name for better vector accuracy
+        const nameEmbedding = await this.generateEmbedding(name);
+        const results = await exerciseService.searchExercises(name, nameEmbedding, coachId, 0.25, 5);
+        allSimilarExercises.push(...results);
+      }));
+
+      if (allSimilarExercises.length > 0) {
+        // LOGICA DI PRIORITIZZAZIONE E DEDUPLICAZIONE
+        const filteredMap = new Map<string, any>();
+
+        allSimilarExercises.forEach((ex: any) => {
+          const baseId = ex.forked_from || ex.id;
+          const existing = filteredMap.get(baseId);
+
+          // Se non c'è ancora o se questo è del coach e quello esistente no, sovrascrivi
+          // Oppure se questo ha una similarità molto più alta
+          if (!existing || (ex.coach_id === coachId && existing.coach_id !== coachId) || (ex.similarity > existing.similarity + 0.1)) {
+            filteredMap.set(baseId, ex);
+          }
+        });
+
+        // Deduplicazione per nome (opzionale ma utile)
+        const finalMap = new Map<string, any>();
+        Array.from(filteredMap.values()).forEach(ex => {
+          const nameKey = (ex.name_it || ex.name).toLowerCase();
+          const existing = finalMap.get(nameKey);
+          if (!existing || (ex.coach_id === coachId && existing.coach_id !== coachId) || (ex.similarity > existing.similarity + 0.1)) {
+            finalMap.set(nameKey, ex);
+          }
+        });
+
+        const finalExercises = Array.from(finalMap.values()).sort((a,b) => b.similarity - a.similarity).slice(0, 30);
+        searchContext = finalExercises.map((ex: any) => 
+          `- ${ex.name_it || ex.name} (ID: ${ex.id}) [Muscoli: ${ex.muscle_group}, Attrezzatura: ${ex.equipment}]${ex.coach_id === coachId ? ' [CUSTOM COACH]' : ''}`
+        ).join('\n');
       }
     }
+
 
     const mappingContext = existingMappings.map(m => `- "${m.slang_name}" -> ${m.standard_exercise_id}`).join('\n');
     const preferencesContext = preferences.map(p => `- ${p.content}`).join('\n');
     const planContext = currentPlan.length > 0 
       ? JSON.stringify(currentPlan.map(ex => ({
           name: ex.name,
+          id: ex.id,
+          library_id: ex.exercise_library_id,
           sets: ex.target_sets,
           reps: ex.target_reps,
           rest_between_sets: ex.rest_seconds,
@@ -469,44 +614,65 @@ export const geminiService = {
       : "La scheda è attualmente VUOTA.";
     
     const prompt = `
-      Sei un assistente AI per un coach di fitness. Analizza questo audio e aggiorna la scheda di allenamento.
-      
-      TRASCRIZIONE AUDIO:
-      "${transcription}"
+      ### RUOLO
+      Sei l'Assistente AI di un elite coach di fitness. Il tuo compito è tradurre le istruzioni del coach in una scheda di allenamento strutturata, mappando gli esercizi alla LIBRERIA ufficiale.
 
-      STATO ATTUALE DELLA SCHEDA:
-      ${planContext}
+      ### ISTRUZIONI DEL COACH
+      "${instructions}"
 
-      PREFERENZE E NOTE DEL COACH (Usa queste per mappare termini o sequenze):
-      ${preferencesContext || 'Nessuna preferenza specifica.'}
-      
-      MAPPING GIA' ESISTENTI (Slang -> ID Libreria):
-      ${mappingContext || 'Nessun mapping esistente.'}
-      
-      CONTESTO LIBRERIA RILEVANTE (Usa QUESTI ID per mappare gli esercizi se corrispondono):
+      ### CONTESTO
+      1. **Libreria Rilevante (Ricerca Vettoriale)**:
       ${searchContext}
       
-      ISTRUZIONI:
-      1. Se la scheda ha già esercizi, MODIFICALI solo se il coach lo chiede espressamente (es: "cambia le serie di X", "rimuovi il gruppo Y"). 
-      2. Altrimenti, aggiungi i nuovi esercizi/gruppi alla fine della scheda.
-      3. Se il coach descrive una sequenza complessa che hai nelle PREFERENZE (es: "Riscaldamento standard"), espandila negli esercizi corrispondenti.
-      4. Ogni esercizio DEVE avere un "group_name". Mantieni la suddivisione in gruppi del coach.
-      5. Supporta il campo "group_iterations" per il numero di giri/round di un gruppo.
-      6. Supporta l'ordine dei gruppi: se il coach dice "prima facciamo X, poi Y", assicurati che l'ordine sia corretto.
-      7. Se un esercizio nell'audio somiglia molto a uno nel CONTESTO LIBRERIA, usa quell'ID.
-      8. Restituisci SEMPRE la lista completa degli esercizi finali (quelli vecchi mantenuti + quelli nuovi/modificati).
+      2. **Mapping Personalizzati (Priorità Assoluta)**:
+      ${mappingContext || 'Nessun mapping personalizzato trovato.'}
 
-      FORMATO OUTPUT JSON:
+      3. **Stato Attuale della Scheda**:
+      ${planContext}
+
+      4. **Preferenze Generali del Coach**:
+      ${preferencesContext || 'Nessuna specifica.'}
+      
+      ### REGOLE DI ELABORAZIONE
+      1. **Analisi Azione**:
+         - 'append': Aggiungi nuovi esercizi in coda o in una posizione specifica.
+         - 'modify': Cambia parametri (set, rep, rest) di esercizi GIÀ PRESENTI (usa l'ID esistente).
+         - 'replace': Sostituisci un esercizio esistente con uno nuovo o cancella/correggi l'ultimo inserimento.
+      
+      2. **Matching Esercizi**:
+         - Se esiste un **Mapping Personalizzato**, USALO sempre se il nome coincide con lo slang del coach.
+         - Se trovi un esercizio con label [CUSTOM COACH], dal matching vettoriale, preferiscilo.
+         - Se la confidenza è < 85%, imposta 'needs_confirmation: true' e proponi fino a 3 alternative.
+         - Se l'esercizio non è in libreria, metti 'exercise_library_id: null' e scrivi il nome originale.
+      
+      3. **Parametri Tecnici**:
+         - Se è a tempo (es. "Plank 60s"): 'is_time_based: true', 'target_reps: 60' (secondi).
+         - 'rest_seconds': Recupero tra le serie.
+         - 'rest_esercizio': Recupero prima di passare al PROSSIMO esercizio.
+         - Se non specificato, usa valori standard coerenti con il tipo di esercizio.
+         - 'group_name': DEVE essere sempre presente (es. "A1", "B1", "Circuit" o nomi descrittivi). Usa nomi diversi per blocchi separati da "poi", "dopo" o "fine".
+         - **IMPORTANTE**: Assicurati di includere OGNI singolo esercizio menzionato nell'array 'exercises', senza eccezioni.
+
+      4. **Note del Coach**:
+         - Inserisci in 'coach_notes' solo info NON catturate dai campi numerici (es. "RPE 8", "40kg", "Fermi 2 secondi in basso").
+
+      ### OUTPUT FORMAT
+      Rispondi ESCLUSIVAMENTE con un JSON valido. Includi una chiave "thinking" per spiegare brevemente il tuo ragionamento prima della struttura dati.
       {
-        "transcription": "${transcription.replace(/"/g, '\\"')}",
-        "action_taken": "append" | "modify",
+        "thinking": "Breve analisi delle istruzioni e delle scelte di mapping effettuate...",
+        "action_taken": "append" | "modify" | "replace",
         "exercises": [
           {
-            "name": "Nome Esercizio",
-            "spoken_name": "Nome usato nell'audio",
-            "exercise_library_id": "uuid o null",
+            "id": "uuid_esistente_se_modifica_altrimenti_null",
+            "name": "Nome Ufficiale Libreria",
+            "spoken_name": "Nome usato dal coach",
+            "exercise_library_id": "uuid_lib_o_null",
+            "confidence_score": 0.95,
+            "needs_confirmation": false,
+            "alternatives": [{"id": "uuid", "name": "Nome"}],
             "target_sets": 3,
             "target_reps": 10,
+            "is_time_based": false,
             "rest_seconds": 60,
             "rest_esercizio": 0,
             "coach_notes": "...",
@@ -519,15 +685,7 @@ export const geminiService = {
     `;
 
     try {
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            mimeType: "audio/webm",
-            data: audioBase64
-          }
-        }
-      ]);
+      const result = await model.generateContent(prompt);
       const text = result.response.text();
       const start = text.indexOf('{');
       const end = text.lastIndexOf('}');
@@ -537,7 +695,7 @@ export const geminiService = {
       const cleanJson = text.substring(start, end + 1).trim();
       return JSON.parse(cleanJson);
     } catch (error) {
-      console.error("Error processing workout audio (FULL DETAILS):", error);
+      console.error("Error processing workout instructions:", error);
       if (error instanceof Error) {
         return { error: error.message };
       }
@@ -547,20 +705,25 @@ export const geminiService = {
 
   async extractPreferenceEssence(audioBase64: string) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const prompt = `
-      Sei un assistente AI per un coach di fitness. Analizza questo audio in cui il coach esprime una preferenza, una regola o un'associazione per i suoi allenamenti.
+      ### RUOLO
+      Sei un assistente AI per un coach di fitness. Il tuo compito è estrarre l'essenza di una preferenza o regola espressa vocalmente.
       
-      OBIETTIVO:
-      Estrai l'essenza della preferenza in una frase breve, chiara e atomica in italiano.
+      ### OBIETTIVO
+      Analizza l'audio e trasforma l'istruzione in una frase breve, atomica e "di sistema" in italiano.
       
-      ESEMPI:
-      - Audio: "D'ora in poi quando dico panca piana intendo quella con manubri" -> "Panca piana significa Panca piana con manubri"
+      ### ESEMPI
+      - Audio: "D'ora in poi quando dico panca piana intendo quella con manubri" -> "Panca piana = Panca piana con manubri"
       - Audio: "Il mio riscaldamento standard sono 5 minuti di salto della corda e 20 pushups" -> "Riscaldamento standard: 5 min corda + 20 pushups"
-      - Audio: "Usa sempre 60 secondi di recupero per gli esercizi di isolamento" -> "Recupero di 60s per esercizi di isolamento"
+      - Audio: "Usa sempre 60 secondi di recupero per gli esercizi di isolamento" -> "Recupero 60s per esercizi di isolamento"
+      - Audio: "Non mettermi mai le croci ai cavi perché ho dolore alla spalla" -> "Evita sempre: Croci ai cavi (dolore spalla)"
 
-      RISPONDI SOLO CON IL TESTO DELLA PREFERENZA ESTRATTA. No introduzioni, no spiegazioni.
+      ### REGOLE
+      - Rispondi **SOLO** con il testo della preferenza estratta.
+      - Massima brevità (max 15 parole).
+      - Usa uno stile diretto e professionale.
     `;
 
     try {
@@ -582,56 +745,49 @@ export const geminiService = {
 
   async structureNutritionalDirectives(rawText: string, athleteContext: { weight?: number, targetKcal?: number, macros?: any, preferences?: string[], intolerances?: string[], dislikedFoods?: string[] }) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const prompt = `
-      Sei un nutrizionista sportivo professionista. Il coach ha scritto delle indicazioni nutrizionali in forma libera.
-      Il tuo compito è ristrutturare queste indicazioni in un documento Markdown standardizzato, chiaro e professionale.
+      ### RUOLO
+      Sei un Nutrizionista Sportivo Professionista. Il tuo compito è trasformare le note informali di un coach in un documento Markdown strutturato, tecnico e motivante.
       
-      TESTO DEL COACH:
+      ### TESTO DEL COACH
       "${rawText}"
       
-      CONTESTO ATLETA:
+      ### CONTESTO ATLETA
       - Peso: ${athleteContext.weight || 'N/A'} kg
       - Target Kcal: ${athleteContext.targetKcal || 'N/A'}
       - Macro: ${JSON.stringify(athleteContext.macros || {})}
-      - Preferenze alimentari: ${athleteContext.preferences?.join(', ') || 'Nessuna'}
+      - Preferenze: ${athleteContext.preferences?.join(', ') || 'Nessuna'}
       - Intolleranze: ${athleteContext.intolerances?.join(', ') || 'Nessuna'}
-      - Cibi sgraditi: ${athleteContext.dislikedFoods?.join(', ') || 'Nessuno'}
+      - Cibi Sgraditi: ${athleteContext.dislikedFoods?.join(', ') || 'Nessuno'}
       
-      STRUTTURA OBBLIGATORIA DEL DOCUMENTO MD (usa queste sezioni, ometti quelle per cui non ci sono informazioni):
+      ### STRUTTURA DOCUMENTO (Markdown)
+      Genera il documento seguendo rigorosamente queste sezioni:
       
       ## 🎯 Obiettivo Nutrizionale
-      Breve descrizione dell'obiettivo (es. definizione, massa, ricomposizione)
+      Analisi dell'obiettivo (es. Declinazione, Massa, Performance) basata sulle note.
       
       ## ⏰ Timing & Frequenza Pasti
-      Numero pasti, finestre alimentari, timing pre/post workout
+      Distribuzione dei pasti e finestre di timing (pre/intra/post workout).
       
-      ## 🥩 Priorità Proteiche
-      Indicazioni specifiche sulle proteine
+      ## 🥩 Ripartizione Macronutrienti
+      Focus su Proteine, Carbo e Grassi con razionale tecnico.
       
-      ## 🍞 Gestione Carboidrati
-      Indicazioni su carbo, ciclizzazione, timing
+      ## 💧 Idratazione & Integrazione
+      Linee guida su acqua e supplementi suggeriti.
       
-      ## 🫒 Grassi & Micronutrienti
-      Indicazioni su grassi, integrazioni, micronutrienti
+      ## ⚠️ Vincoli & Regole d'Oro
+      Cosa evitare e su cosa non transigere.
       
-      ## 💧 Idratazione
-      Indicazioni su acqua e liquidi
+      ## 📝 Note Strategiche
+      Consigli extra per la gestione sociale o imprevisti.
       
-      ## ⚠️ Regole Specifiche
-      Restrizioni, alimenti da evitare, note particolari
-      
-      ## 📝 Note del Coach
-      Qualsiasi altra indicazione non categorizzabile
-      
-      REGOLE:
-      - Mantieni TUTTE le informazioni del coach, non perdere nulla
-      - Aggiungi contesto e razionale dove possibile basandoti sul contesto atleta
-      - Usa liste puntate, bold per i concetti chiave
-      - Sii conciso ma completo
-      - Se il testo del coach è vuoto o minimo, genera comunque una struttura base con placeholder
-      - Rispondi SOLO con il documento Markdown, nient'altro
+      ### REGOLE
+      - Mantieni TUTTE le info del coach.
+      - Usa un tono professionale ("Elite Performance").
+      - Usa grassetti e liste puntate per la leggibilità.
+      - Rispondi SOLO con il Markdown.
     `;
 
     try {
@@ -645,28 +801,26 @@ export const geminiService = {
 
   async chatDietDirectives(currentMd: string, userMessage: string, athleteContext: { weight?: number, targetKcal?: number, macros?: any }) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = getModel();
 
     const prompt = `
-      Sei un assistente AI per un coach di fitness. Il coach vuole modificare le direttive nutrizionali di un atleta tramite chat.
+      ### RUOLO
+      Sei l'Assistente AI del Nutrizionista. Devi aggiornare le direttive esistenti in base alle nuove istruzioni della chat.
       
-      DOCUMENTO ATTUALE:
+      ### DOCUMENTO ATTUALE
       ${currentMd || '(vuoto)'}
       
-      CONTESTO ATLETA:
-      - Peso: ${athleteContext.weight || 'N/A'} kg
-      - Target Kcal: ${athleteContext.targetKcal || 'N/A'}
-      - Macro: ${JSON.stringify(athleteContext.macros || {})}
+      ### CONTESTO ATLETA
+      - Peso: ${athleteContext.weight || 'N/A'} kg | Target Kcal: ${athleteContext.targetKcal || 'N/A'}
       
-      RICHIESTA DEL COACH:
+      ### MESSAGGIO DEL COACH
       "${userMessage}"
       
-      ISTRUZIONI:
-      - Applica la modifica richiesta al documento esistente
-      - Mantieni la struttura Markdown con le sezioni (## 🎯, ## ⏰, ## 🥩, ecc.)
-      - Se la modifica riguarda una sezione esistente, aggiornala. Se è nuova, aggiungila nella sezione appropriata
-      - Non rimuovere contenuto esistente a meno che il coach non lo chieda esplicitamente
-      - Rispondi SOLO con il documento Markdown completo aggiornato, nient'altro
+      ### COMPITO
+      1. Integra le nuove informazioni nel Markdown esistente senza distruggerne la struttura.
+      2. Se il coach chiede un cambio radicale, riorganizza le sezioni interessate.
+      3. Mantieni lo stile professionale e tecnico.
+      4. Rispondi SOLO con il Markdown completo aggiornato.
     `;
 
     try {
@@ -679,40 +833,37 @@ export const geminiService = {
   },
   async structureFocusObjectives(rawText: string, athleteContext: { first_name?: string, last_name?: string, weight?: number, height?: number, age?: number, gender?: string }) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    const model = getModel();
 
     const prompt = `
-      Sei un coach di fitness e performance professionista. Il tuo compito è trasformare delle note sparse sugli obiettivi e sul focus di un atleta in un documento strategico Markdown ben strutturato e motivante.
+      ### RUOLO
+      Sei un Head Coach di Fitness e Performance. Il tuo compito è trasformare le note sparse su obiettivi e focus in un documento strategico Markdown.
       
-      NOTE DEL COACH/ATLETA:
+      ### NOTE DEL COACH/ATLETA
       "${rawText}"
       
-      CONTESTO ATLETA:
+      ### CONTESTO ATLETA
       - Nome: ${athleteContext.first_name} ${athleteContext.last_name}
-      - Biometria: ${athleteContext.weight || 'N/A'}kg, ${athleteContext.height || 'N/A'}cm, ${athleteContext.age || 'N/A'} anni, ${athleteContext.gender || 'N/A'}
+      - Biometria: ${athleteContext.weight || 'N/A'}kg, ${athleteContext.height || 'N/A'}cm, ${athleteContext.age || 'N/A'} anni
       
-      STRUTTURA OBBLIGATORIA DEL DOCUMENTO MD (usa queste sezioni, ometti quelle per cui non ci sono informazioni):
+      ### SEZIONI OBBLIGATORIE (Markdown)
       
-      ## 🎯 Obiettivo Principale
-      Descrizione chiara del macro-obiettivo (es. Powerbuilding, Preparazione Gara, Weight Loss, Longevity)
+      ## 🎯 Obiettivo Centrale
+      Definizione chiara della "Stella Polare" (es. Powerbuilding, Body Recomp).
       
-      ## 🔥 Focus Corrente (Macro-Ciclo)
-      Su cosa ci stiamo concentrando in questo momento (es. Tecniche di esecuzione, Ipertrofia funzionale, Forza massimale)
+      ## 🔥 Focus del Macro-Ciclo
+      Priorità tecniche e fisiche attuali (es. "Saturazione Ipertrofica dorsali").
       
-      ## 📈 Key Results & Milestone
-      Cosa vogliamo ottenere nel breve/medio termine (es. +5kg su panca, -2cm vita, 10 pull-ups)
+      ## 📈 Milestone & KPI
+      3-5 risultati chiave misurabili nel breve termine.
       
-      ## 🧠 Mindset & Approccio
-      Indicazioni sull'attitudine mentale, gestione dello stress, motivazione
+      ## 🧠 Mindset & Habits
+      Indicazioni su attitudine e gestione extra-palestra.
       
-      ## 📝 Note Strategiche
-      Qualsiasi altra indicazione non categorizzabile
-      
-      REGOLE:
-      - Usa un tono professionale, autoritario ma incoraggiante
-      - Mantieni TUTTE le note fornite, arricchendole con il tuo expertise
-      - Usa liste puntate e grassetti per leggibilità
-      - Rispondi SOLO con il documento Markdown, nient'altro
+      ### REGOLE
+      - Tono autorevole, professionale ed elite.
+      - Usa grassetti e liste puntate.
+      - Rispondi SOLO con il Markdown.
     `;
 
     try {
@@ -726,25 +877,25 @@ export const geminiService = {
 
   async chatFocusObjectives(currentMd: string, userMessage: string, athleteContext: any) {
     if (!API_KEY) return null;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    const model = getModel();
 
     const prompt = `
-      Sei un coach di fitness esperto. Vuoi aiutare un altro coach a modificare il documento "Focus e Obiettivi" di un atleta tramite chat.
+      ### RUOLO
+      Sei l'Assistente AI del Coach. Devi aggiornare il documento "Focus e Obiettivi" tramite chat context.
       
-      DOCUMENTO ATTUALE:
+      ### DOCUMENTO ATTUALE
       ${currentMd || '(vuoto)'}
       
-      CONTESTO ATLETA:
+      ### CONTESTO ATLETA
       ${JSON.stringify(athleteContext)}
       
-      RICHIESTA DEL COACH:
+      ### RICHIESTA DEL COACH
       "${userMessage}"
       
-      ISTRUZIONI:
-      - Applica la modifica richiesta mantenendo lo stile e la struttura Markdown
-      - Se la richiesta è una nuova informazione, inseriscila nella sezione corretta
-      - Se è una modifica a qualcosa di esistente, aggiorna la sezione relativa
-      - Rispondi SOLO con il documento Markdown completo aggiornato, nient'altro
+      ### ISTRUZIONI
+      - Integra le modifiche salvaguardando il tono professionale e la struttura a sezioni (## 🎯, ## 🔥, ecc.).
+      - Mantieni la coerenza con gli obiettivi a lungo termine.
+      - Rispondi SOLO con il Markdown completo aggiornato.
     `;
 
     try {
@@ -754,5 +905,9 @@ export const geminiService = {
       console.error("Error in chat focus objectives:", error);
       return null;
     }
+  },
+
+  setOverrideModel(model: GeminiModelType) {
+    overrideModel = model;
   }
 };

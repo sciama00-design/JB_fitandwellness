@@ -208,7 +208,9 @@ export default function WorkoutSessionDetailModal({ sessionId, isOpen, onClose }
                                     <span className="text-[10px] font-black text-muted-foreground/60 uppercase">kg</span>
                                     <span className="mx-2 text-primary font-black opacity-40 italic text-sm">×</span>
                                     <span className="text-2xl font-black text-foreground italic">{log.reps}</span>
-                                    <span className="text-[10px] font-black text-muted-foreground/60 uppercase">reps</span>
+                                    <span className="text-[10px] font-black text-muted-foreground/60 uppercase">
+                                      {log.is_time_based ? 'sec' : 'reps'}
+                                    </span>
                                 </div>
                             </div>
                             

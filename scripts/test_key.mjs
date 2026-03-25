@@ -18,7 +18,7 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 
 async function testModels() {
   // Test both the stable one and the ones from the user list
-  const models = ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-2.5-flash-lite", "gemini-3.1-flash-lite-preview"];
+  const models = ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-3.1-flash-lite-preview"];
   for (const modelName of models) {
     console.log(`Testing ${modelName}...`);
     try {

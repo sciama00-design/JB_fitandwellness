@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { appointmentService } from '../../services/appointmentService';
+import { todoService } from '../../services/todoService';
 import { athleteService } from '../../services/athleteService';
 import { useAuth } from '../../lib/auth';
 import Calendar from '../../components/calendar/Calendar';
-import { Loader2, Plus, Calendar as CalendarIcon, User, Clock, MapPin, Trash2, ChevronRight, Activity } from 'lucide-react';
+import { Loader2, Plus, Calendar as CalendarIcon, User, Clock, MapPin, Trash2, ChevronRight, Activity, Circle } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
-// import clsx from 'clsx'; // Removed unused
 
 export default function CoachCalendar() {
   const { user } = useAuth();
@@ -27,6 +27,12 @@ export default function CoachCalendar() {
   const { data: appointments, isLoading: isLoadingApts } = useQuery({
     queryKey: ['coach-appointments', user?.id],
     queryFn: () => appointmentService.getCoachAppointments(user!.id),
+    enabled: !!user?.id,
+  });
+
+  const { data: todos, isLoading: isLoadingTodos } = useQuery({
+    queryKey: ['todos', user?.id],
+    queryFn: () => todoService.getTodos(user!.id),
     enabled: !!user?.id,
   });
 
@@ -60,7 +66,12 @@ export default function CoachCalendar() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['coach-appointments'] })
   });
 
-  if (isLoadingApts) {
+  const toggleTodoMutation = useMutation({
+    mutationFn: ({ id, completed }: { id: string, completed: boolean }) => todoService.toggleTodo(id, completed),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['todos'] })
+  });
+
+  if (isLoadingApts || isLoadingTodos) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
         <div className="relative">
@@ -73,9 +84,16 @@ export default function CoachCalendar() {
   }
 
   const upcomingApts = appointments?.filter(a => new Date(a.start_time) >= new Date()) || [];
+  const pendingTodos = todos?.filter(t => !t.completed) || [];
+  
+  // Combine and sort upcoming tasks (appointments + pending todos)
+  const allTasks = [
+    ...upcomingApts.map(a => ({ ...a, type: 'appointment', sortDate: new Date(a.start_time) })),
+    ...pendingTodos.map(t => ({ ...t, type: 'todo', sortDate: new Date(t.due_date) }))
+  ].sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime());
 
   return (
-    <div className="space-y-12 max-w-7xl mx-auto pb-20">
+    <div className="space-y-10 max-w-[1400px] mx-auto pb-20">
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 px-1">
         <div className="space-y-4">
@@ -102,73 +120,94 @@ export default function CoachCalendar() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         {/* Main Calendar Area */}
-        <div className="xl:col-span-3">
-          <Calendar appointments={appointments} className="h-full" />
+        <div className="lg:col-span-8 xl:col-span-9">
+          <Calendar 
+            appointments={appointments} 
+            todos={todos}
+            className="h-full" 
+          />
         </div>
 
-        {/* Sidebar: Upcoming Appointments */}
-        <div className="xl:col-span-1 space-y-8">
+        {/* Sidebar: Upcoming Tasks */}
+        <div className="lg:col-span-4 xl:col-span-3 space-y-8">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-xl font-black text-foreground italic uppercase tracking-tight">Prossimi Task</h2>
             <div className="px-3 py-1 bg-secondary/20 rounded-full border border-white/5">
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{upcomingApts.length}</span>
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{allTasks.length}</span>
             </div>
           </div>
           
-          <div className="space-y-4">
+          <div className="space-y-4 h-[calc(100vh-350px)] overflow-y-auto pr-2 custom-scrollbar">
              <AnimatePresence mode="popLayout">
-              {upcomingApts.slice(0, 6).map((apt, idx) => (
+              {allTasks.map((task, idx) => (
                 <motion.div 
-                  key={apt.id}
+                  key={task.id}
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: idx * 0.1 }}
-                  className="glass-card p-4 sm:p-5 rounded-3xl sm:rounded-[2rem] border-white/5 space-y-4 group relative overflow-hidden bg-secondary/5 hover:bg-secondary/10 transition-all"
+                  transition={{ delay: idx * 0.05 }}
+                  className={`glass-card p-5 rounded-[2rem] border-white/5 space-y-4 group relative overflow-hidden transition-all ${
+                    task.type === 'appointment' ? 'bg-emerald-500/5 hover:bg-emerald-500/10' : 'bg-indigo-500/5 hover:bg-indigo-500/10'
+                  }`}
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary/10 transition-colors"></div>
+                  <div className={`absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 blur-2xl opacity-10 group-hover:opacity-20 transition-opacity ${
+                    task.type === 'appointment' ? 'bg-emerald-500' : 'bg-indigo-500'
+                  }`}></div>
                   
                   <div className="flex items-start gap-4 relative z-10">
                     <div className="w-12 h-12 bg-background/80 rounded-[1.25rem] flex flex-col items-center justify-center border border-white/5 shadow-inner shrink-0 scale-100 group-hover:scale-105 transition-transform">
-                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-tighter opacity-40">{format(new Date(apt.start_time), "MMM", { locale: it })}</span>
-                      <span className="text-lg font-black text-foreground italic leading-none">{format(new Date(apt.start_time), "d")}</span>
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-tighter opacity-40">{format(task.sortDate, "MMM", { locale: it })}</span>
+                      <span className="text-lg font-black text-foreground italic leading-none">{format(task.sortDate, "d")}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-black text-foreground italic uppercase tracking-tight text-lg leading-none truncate group-hover:translate-x-1 transition-transform">{apt.title}</h3>
+                      <h3 className="font-black text-foreground italic uppercase tracking-tight text-base leading-none truncate group-hover:translate-x-1 transition-transform">{task.title}</h3>
                       <div className="flex items-center gap-2 mt-2">
-                        <Clock className="w-3 h-3 text-primary" />
-                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-60">{format(new Date(apt.start_time), "HH:mm")}</span>
+                        <Clock className={`w-3 h-3 ${task.type === 'appointment' ? 'text-emerald-500' : 'text-indigo-400'}`} />
+                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest opacity-60">
+                          {task.type === 'appointment' ? format(task.sortDate, "HH:mm") : 'Task Giornaliera'}
+                        </span>
                       </div>
                     </div>
                     
-                    <button 
-                      onClick={() => {
-                        if(confirm('Eliminare questo appuntamento?')) deleteMutation.mutate(apt.id);
-                      }}
-                      className="w-8 h-8 glass-interactive rounded-lg flex items-center justify-center text-red-500/30 hover:text-red-500 bg-white/5 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {task.type === 'appointment' ? (
+                      <button 
+                        onClick={() => {
+                          if(confirm('Eliminare questo appuntamento?')) deleteMutation.mutate(task.id);
+                        }}
+                        className="w-8 h-8 glass-interactive rounded-lg flex items-center justify-center text-red-500/30 hover:text-red-500 bg-white/5 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => toggleTodoMutation.mutate({ id: task.id, completed: true })}
+                        className="w-8 h-8 glass-interactive rounded-lg flex items-center justify-center text-indigo-400/30 hover:text-indigo-400 bg-white/5 hover:bg-indigo-500/10 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                      >
+                        <Circle className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-3 pt-3 border-t border-white/[0.03] relative z-10">
-                    <div className="flex items-center gap-2 flex-1">
-                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                        <User className="w-3.5 h-3.5" />
+                  {task.type === 'appointment' && (
+                    <div className="flex items-center gap-3 pt-3 border-t border-white/[0.03] relative z-10">
+                      <div className="flex items-center gap-2 flex-1">
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest truncate opacity-80">
+                          {task.profiles ? `${task.profiles.first_name} ${task.profiles.last_name || ''}` : 'Public Session'}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest truncate opacity-80">
-                        {apt.profiles ? `${apt.profiles.first_name} ${apt.profiles.last_name || ''}` : 'Public Session'}
-                      </span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground opacity-20 group-hover:translate-x-1 transition-transform" />
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground opacity-20 group-hover:translate-x-1 transition-transform" />
-                  </div>
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
             
-            {upcomingApts.length === 0 && (
+            {allTasks.length === 0 && (
               <div className="py-20 glass-card rounded-[2.5rem] border-dashed border-2 border-white/5 text-center space-y-4 opacity-30">
                 <Activity className="w-12 h-12 mx-auto text-muted-foreground opacity-20" />
                 <p className="text-[10px] font-black uppercase tracking-widest">Nessun task pianificato</p>

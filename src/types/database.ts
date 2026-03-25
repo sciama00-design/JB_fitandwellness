@@ -72,6 +72,10 @@ export type PlanTemplateExercise = {
   spoken_name?: string;
   group_iterations?: number | null;
   video_urls?: string[] | null;
+  confidence_score?: number | null;
+  needs_confirmation?: boolean | null;
+  alternatives?: any[] | null;
+  is_time_based?: boolean | null;
   created_at: string;
 };
 
@@ -94,6 +98,10 @@ export type PlanExercise = {
   spoken_name?: string;
   group_iterations?: number | null;
   video_urls?: string[] | null;
+  confidence_score?: number | null;
+  needs_confirmation?: boolean | null;
+  alternatives?: any[] | null;
+  is_time_based?: boolean | null;
   created_at: string;
 };
 
@@ -117,6 +125,7 @@ export type ExerciseLog = {
   notes: string | null;
   athlete_feedback: string | null;
   rpe: number | null;
+  is_time_based?: boolean | null;
   created_at: string;
 };
 
@@ -213,6 +222,6 @@ export type CoachPreference = {
   id: string;
   coach_id: string;
   content: string;
+  category: 'workout' | 'nutrition' | 'strategic';
   created_at: string;
 };
-

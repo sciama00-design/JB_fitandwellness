@@ -21,12 +21,21 @@ interface CalendarProps {
   sessions?: any[];
   measurements?: any[];
   appointments?: any[];
+  todos?: any[];
   onViewSession?: (sessionId: string) => void;
   onDeleteSession?: (sessionId: string) => void;
   className?: string;
 }
 
-export default function Calendar({ sessions = [], measurements = [], appointments = [], onViewSession, onDeleteSession, className = "" }: CalendarProps) {
+export default function Calendar({ 
+  sessions = [], 
+  measurements = [], 
+  appointments = [], 
+  todos = [],
+  onViewSession, 
+  onDeleteSession, 
+  className = "" 
+}: CalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -47,17 +56,19 @@ export default function Calendar({ sessions = [], measurements = [], appointment
     const daySessions = sessions.filter(s => isSameDay(new Date(s.started_at), date));
     const dayMeasurements = measurements.filter(m => isSameDay(new Date(m.recorded_at), date));
     const dayAppointments = appointments.filter(a => isSameDay(new Date(a.start_time), date));
+    const dayTodos = todos.filter(t => isSameDay(new Date(t.due_date), date));
     
     return {
       sessions: daySessions,
       measurements: dayMeasurements,
       appointments: dayAppointments,
-      hasEvents: daySessions.length > 0 || dayMeasurements.length > 0 || dayAppointments.length > 0
+      todos: dayTodos,
+      hasEvents: daySessions.length > 0 || dayMeasurements.length > 0 || dayAppointments.length > 0 || dayTodos.length > 0
     };
   };
 
   return (
-    <div className={clsx("glass-card rounded-[3rem] p-8 border-white/5 overflow-hidden shadow-2xl relative bg-secondary/5", className)}>
+    <div className={clsx("glass-card rounded-[2.5rem] p-6 sm:p-8 border-white/5 overflow-hidden shadow-2xl relative bg-secondary/5", className)}>
       {/* Background decoration */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none"></div>
 
@@ -89,7 +100,7 @@ export default function Calendar({ sessions = [], measurements = [], appointment
       </div>
 
       {/* Weekdays */}
-      <div className="grid grid-cols-7 mb-6 relative z-10">
+      <div className="grid grid-cols-7 mb-4 relative z-10 max-w-5xl mx-auto">
         {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(day => (
           <div key={day} className="text-center text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-30 py-2">
             {day}
@@ -98,10 +109,10 @@ export default function Calendar({ sessions = [], measurements = [], appointment
       </div>
 
       {/* Days Grid */}
-      <div className="grid grid-cols-7 gap-2 relative z-10">
+      <div className="grid grid-cols-7 gap-2 relative z-10 max-w-5xl mx-auto">
         <AnimatePresence mode="popLayout">
           {calendarDays.map((day, idx) => {
-            const { sessions: daySessions, measurements: dayMeasurements, appointments: dayAppointments } = getEventsForDay(day);
+            const { sessions: daySessions, measurements: dayMeasurements, appointments: dayAppointments, todos: dayTodos } = getEventsForDay(day);
             const isCurrentMonth = format(day, 'M') === format(currentMonth, 'M');
             const today = isToday(day);
 
@@ -115,7 +126,7 @@ export default function Calendar({ sessions = [], measurements = [], appointment
                 transition={{ duration: 0.2, delay: idx * 0.005 }}
                 onClick={() => setSelectedDate(day)}
                 className={clsx(
-                  "relative aspect-square rounded-[1.5rem] flex flex-col items-center justify-center transition-all p-2 group overflow-hidden",
+                  "relative min-h-[80px] sm:min-h-[100px] rounded-[1.5rem] flex flex-col items-center justify-center transition-all p-3 group overflow-hidden",
                   isCurrentMonth ? "text-foreground" : "text-muted-foreground opacity-10 pointer-events-none",
                   today 
                     ? "bg-primary text-white shadow-xl shadow-primary/20 scale-105 z-20" 
@@ -147,6 +158,9 @@ export default function Calendar({ sessions = [], measurements = [], appointment
                   {dayMeasurements.length > 0 && (
                     <div className={clsx("w-1.5 h-1.5 rounded-full shadow-sm", today ? "bg-white/60" : "bg-amber-500")} />
                   )}
+                  {dayTodos.length > 0 && (
+                    <div className={clsx("w-1.5 h-1.5 rounded-full shadow-sm", today ? "bg-white/40" : "bg-indigo-400")} />
+                  )}
                 </div>
 
                 {/* Hover decoration */}
@@ -168,6 +182,7 @@ export default function Calendar({ sessions = [], measurements = [], appointment
           sessions={getEventsForDay(selectedDate).sessions}
           measurements={getEventsForDay(selectedDate).measurements}
           appointments={getEventsForDay(selectedDate).appointments}
+          todos={getEventsForDay(selectedDate).todos}
           onViewSession={onViewSession}
           onDeleteSession={onDeleteSession}
         />

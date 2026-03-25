@@ -16,7 +16,8 @@ import {
   Tv,
   XCircle,
   Save,
-  Trash2
+  Trash2,
+  MessageSquare
 } from 'lucide-react';
 import ExerciseDetailModal from '../../components/ExerciseDetailModal';
 import { exerciseService } from '../../services/exerciseService';
@@ -24,7 +25,7 @@ import type { ExerciseLibrary } from '../../types/database';
 import { MediaViewer } from '../../components/shared/MediaViewer';
 // import { parseVideoUrls } from '../../lib/videoUtils'; // Removed unused
 import { motion, AnimatePresence } from 'framer-motion';
-import clsx from 'clsx';
+import { cn } from '../../lib/utils';
 // import Modal from '../../components/Modal'; // Removed unused
 
 export default function WorkoutSession() {
@@ -57,6 +58,12 @@ export default function WorkoutSession() {
   const [exerciseFeedback, setExerciseFeedback] = useState('');
   const [showFullList, setShowFullList] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
+
+  // Set Timer (Stopwatch/Countdown for time-based exercises)
+  const [setTimerTime, setSetTimerTime] = useState<number | null>(null);
+  const [isSetTimerRunning, setIsSetTimerRunning] = useState(false);
+  const [setTimerMode, setSetTimerMode] = useState<'stopwatch' | 'countdown'>('countdown');
+  const [restNote, setRestNote] = useState('');
 
   const { data: allLibraryExercises } = useQuery({
     queryKey: ['exercises'],
@@ -139,7 +146,7 @@ export default function WorkoutSession() {
         updateLog(lastLoggedSet.exerciseId, lastLoggedSet.setIndex, { 
           actual_rest: actualRest 
         });
-        moveToNextStep();
+        moveToNextStep(true);
       }
       setIsResting(false);
       setRestTimeLeft(null);
@@ -147,6 +154,30 @@ export default function WorkoutSession() {
     }
     return () => clearInterval(interval);
   }, [isResting, restTimeLeft, isPaused]);
+
+  // Set Timer logic
+  useEffect(() => {
+    let interval: any;
+    if (isSetTimerRunning && setTimerTime !== null && !isPaused) {
+      interval = setInterval(() => {
+        setSetTimerTime(prev => {
+          if (prev === null) return null;
+          if (setTimerMode === 'countdown') {
+            if (prev <= 0) {
+              setIsSetTimerRunning(false);
+              // Play a sound or haptic feedback here if possible
+              if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+              return 0;
+            }
+            return prev - 1;
+          } else {
+            return prev + 1;
+          }
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isSetTimerRunning, isPaused, setTimerMode]);
 
   const sessionExercises = useMemo(() => {
     if (!plan?.exercises) return [];
@@ -266,18 +297,49 @@ export default function WorkoutSession() {
       setRestStartTime(Date.now());
       setLastLoggedSet({ exerciseId: currentExercise.id, setIndex: currentSetIndex });
     } else {
-      moveToNextStep();
+      moveToNextStep(true);
     }
   };
 
-  const moveToNextStep = () => {
+  const moveToNextStep = (skipFeedbackIfBrief = false) => {
     if (!plan || !currentExercise) return;
     
     const setsToComplete = currentExercise.setsInRound || currentExercise.target_sets || 1;
     if (currentSetIndex < (setsToComplete - 1)) {
       setCurrentSetIndex(prev => prev + 1);
     } else {
-      setShowExerciseFeedback(true);
+      // Logic for compacting notes and skipping if exercise was short
+      if (skipFeedbackIfBrief && setsToComplete === 1) {
+        completeExerciseAndMove();
+      } else {
+        setShowExerciseFeedback(true);
+      }
+    }
+  };
+
+  const completeExerciseAndMove = () => {
+    const exerciseId = currentExercise?.id;
+    if (exerciseId && exerciseFeedback) {
+      const updatedExLogs = [...(logs[exerciseId] || [])];
+      const lastSetIdx = updatedExLogs.length - 1;
+      if (lastSetIdx >= 0) {
+        updatedExLogs[lastSetIdx] = { 
+          ...updatedExLogs[lastSetIdx], 
+          notes: [updatedExLogs[lastSetIdx].notes, exerciseFeedback].filter(Boolean).join(' | ')
+        };
+        setLogs({ ...logs, [exerciseId]: updatedExLogs });
+      }
+    }
+    
+    setShowExerciseFeedback(false);
+    setExerciseFeedback('');
+    setCurrentSetIndex(0);
+    
+    if (currentExerciseIndex === (sessionExercises.length || 0) - 1) {
+      endMutation.mutate();
+    } else {
+      setCurrentExerciseIndex(currentExerciseIndex + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -389,56 +451,59 @@ export default function WorkoutSession() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-10 pb-40 px-6">
+    <div className={cn(
+      "max-w-3xl mx-auto space-y-4 sm:space-y-10 pb-20 sm:pb-40 px-2 sm:px-6",
+      isResting && "h-screen overflow-hidden"
+    )}>
       {/* Session Header */}
       <motion.div 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="flex items-center justify-between sticky top-4 sm:top-10 z-[60] glass-header px-4 sm:px-6 py-3 sm:py-4 rounded-2xl sm:rounded-[2.5rem] border-white/10 shadow-2xl"
+        className="flex items-center justify-between sticky top-2 sm:top-10 z-[60] glass-header px-3 sm:px-6 py-2 sm:py-5 rounded-2xl sm:rounded-[2.5rem] border-white/10 shadow-2xl backdrop-blur-3xl mx-2 sm:mx-0"
       >
-        <div className="flex items-center gap-4">
-          <div className={clsx(
-            "p-3 rounded-2xl border transition-colors",
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className={cn(
+            "p-2 sm:p-3.5 rounded-xl sm:rounded-2xl border transition-colors shadow-inner",
             isPaused ? "bg-amber-500/10 border-amber-500/20 text-amber-500" : "bg-primary/10 border-primary/20 text-primary"
           )}>
-            <Timer className={clsx("w-6 h-6", !isPaused && "animate-pulse")} />
+            <Timer className={cn("w-5 h-5 sm:w-7 h-7", !isPaused && "animate-pulse")} />
           </div>
           <div>
-            <p className="text-[9px] uppercase font-black text-muted-foreground tracking-[0.2em] opacity-50">Tempo</p>
-            <p className="text-2xl font-mono font-black italic text-foreground leading-none mt-1">
+            <p className="text-[8px] sm:text-[10px] uppercase font-black text-muted-foreground tracking-[0.2em] opacity-50 hidden xs:block">Tempo Sessione</p>
+            <p className="text-xl sm:text-3xl font-mono font-black italic text-foreground leading-none mt-0.5 sm:mt-1 tracking-tighter">
               {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button 
             onClick={() => setShowFullList(true)}
-            className="w-12 h-12 glass-interactive rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:scale-105 active:scale-95 transition-all border-white/5"
+            className="w-10 h-10 sm:w-12 sm:h-12 glass-interactive rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:scale-105 active:scale-95 transition-all border-white/5"
             title="Lista Esercizi"
           >
-            <List className="w-5 h-5" />
+            <List className="w-4 h-4 sm:w-5 h-5" />
           </button>
           
           <button 
             onClick={() => setIsPaused(!isPaused)}
-            className={clsx(
-              "w-12 h-12 rounded-xl flex items-center justify-center shadow-lg transition-all active:scale-95 border",
+            className={cn(
+              "w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shadow-lg transition-all active:scale-95 border",
               isPaused 
                 ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-400" 
                 : "bg-amber-500/20 border-amber-500/30 text-amber-500"
             )}
             title={isPaused ? 'Riprendi' : 'Pausa'}
           >
-            {isPaused ? <Play className="w-5 h-5 fill-current" /> : <Pause className="w-5 h-5 fill-current" />}
+            {isPaused ? <Play className="w-4 h-4 sm:w-5 h-5 fill-current" /> : <Pause className="w-4 h-4 sm:w-5 h-5 fill-current" />}
           </button>
 
           <button 
             onClick={() => setShowEndModal(true)}
-            className="h-12 px-6 glass-interactive rounded-xl flex items-center gap-2 border-red-500/20 hover:bg-red-500/10 text-red-500 font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all ml-1"
+            className="h-10 sm:h-12 px-4 sm:px-6 glass-interactive rounded-xl flex items-center gap-2 border-red-500/20 hover:bg-red-500/10 text-red-500 font-black uppercase tracking-widest text-[9px] sm:text-[10px] active:scale-95 transition-all"
           >
             <XCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Stop</span>
+            <span className="hidden xs:inline">Stop</span>
           </button>
         </div>
       </motion.div>
@@ -448,18 +513,18 @@ export default function WorkoutSession() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
-        className="space-y-4 px-2"
+        className="space-y-2 sm:space-y-4 px-2"
       >
         <div className="flex justify-between items-end">
-           <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-40">Avanzamento Sessione</span>
-           <div className="flex items-center gap-2">
-             <span className="text-xl font-black italic text-foreground tracking-tighter">
+           <span className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-40 hidden xs:block">Avanzamento Sessione</span>
+           <div className="flex items-center gap-2 ml-auto">
+             <span className="text-lg sm:text-2xl font-black italic text-foreground tracking-tighter">
                {currentExerciseIndex + 1}
              </span>
              <span className="text-xs font-black text-muted-foreground opacity-30 italic">/ {sessionExercises.length}</span>
            </div>
         </div>
-        <div className="w-full bg-white/5 h-3 rounded-full overflow-hidden flex p-1 border border-white/5 shadow-inner">
+        <div className="w-full bg-white/5 h-2 sm:h-3 rounded-full overflow-hidden flex p-0.5 sm:p-1 border border-white/5 shadow-inner">
           {sessionExercises.map((_ex: any, idx: number) => {
             const isCurrent = idx === currentExerciseIndex;
             const isCompleted = idx < currentExerciseIndex;
@@ -473,7 +538,7 @@ export default function WorkoutSession() {
                 }}
                 className="flex-1 h-full rounded-full mx-0.5"
                 style={{ 
-                  boxShadow: isCurrent ? '0 0 15px var(--primary)' : 'none'
+                  boxShadow: isCurrent ? '0 0 10px var(--primary)' : 'none'
                 }}
               />
             );
@@ -488,173 +553,264 @@ export default function WorkoutSession() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
-          className="glass-card group p-6 sm:p-10 rounded-3xl sm:rounded-[3rem] border-white/5 shadow-2xl relative overflow-hidden"
+          className="glass-card group p-4 sm:p-10 rounded-2xl sm:rounded-[3rem] border-white/5 shadow-2xl relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none group-hover:bg-primary/10 transition-colors"></div>
           
-          <div className="flex items-start justify-between relative z-10">
-            <div className="space-y-6 flex-1">
-              <div className="space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                  <h2 className="text-2xl sm:text-4xl font-black text-foreground italic uppercase leading-tight tracking-tighter">{currentExercise?.name}</h2>
-                  <div className="flex items-center gap-1">
+          <div className="relative z-10 flex flex-col space-y-2 sm:space-y-4">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between group/title">
+                <h2 className="text-xl sm:text-4xl font-black text-foreground italic uppercase leading-tight tracking-tighter truncate max-w-[80%]">{currentExercise?.name}</h2>
+                <div className="flex items-center gap-0.5 sm:gap-1">
+                  <button 
+                    onClick={handleShowInfo}
+                    className="p-1.5 sm:p-3 text-muted-foreground hover:text-primary transition-all"
+                    title="Info Esercizio"
+                  >
+                    <Info className="w-5 h-5 sm:w-6 h-6" />
+                  </button>
+                  {(currentExercise?.video_urls && currentExercise.video_urls.length > 0) && (
                     <button 
-                      onClick={handleShowInfo}
-                      className="p-3 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-2xl transition-all border border-transparent hover:border-primary/20"
-                      title="Info Esercizio"
+                      onClick={() => setIsMediaViewerOpen(true)}
+                      className="p-1.5 sm:p-3 text-muted-foreground hover:text-blue-400 transition-all"
+                      title="Video Esercizio"
                     >
-                      <Info className="w-6 h-6" />
+                      <Tv className="w-5 h-5 sm:w-6 h-6" />
                     </button>
-                    {(currentExercise?.video_urls && currentExercise.video_urls.length > 0) && (
-                      <button 
-                        onClick={() => setIsMediaViewerOpen(true)}
-                        className="p-3 text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10 rounded-2xl transition-all border border-transparent hover:border-blue-400/20"
-                        title="Video Esercizio"
-                      >
-                        <Tv className="w-6 h-6" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-[10px] flex items-center gap-3">
-                  <Dumbbell className="w-4 h-4 text-primary" />
-                  Esercizio {currentExerciseIndex + 1} di {sessionExercises.length} 
-                  {currentExercise?.totalRounds > 1 && ` — Giro ${currentExercise.round}/${currentExercise.totalRounds}`}
-                  — Serie {(currentExercise.startSetIdx || 0) + currentSetIndex + 1}/{currentExercise?.target_sets}
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                {currentExercise?.rest_seconds > 0 && (
-                  <div className="px-4 py-2 bg-secondary/30 ring-1 ring-white/5 rounded-xl text-[10px] font-black text-foreground uppercase tracking-widest flex items-center gap-2">
-                    <Timer className="w-4 h-4 text-primary" />
-                    Set: {currentExercise.rest_seconds}s
-                  </div>
-                )}
-                {currentExercise?.rest_esercizio > 0 && (
-                  <div className="px-4 py-2 bg-secondary/30 ring-1 ring-white/5 rounded-xl text-[10px] font-black text-foreground uppercase tracking-widest flex items-center gap-2">
-                    <Timer className="w-4 h-4 text-emerald-500" />
-                    Fine es: {currentExercise.rest_esercizio}s
-                  </div>
-                )}
-                <div className="px-4 py-2 bg-primary/10 ring-1 ring-primary/20 rounded-xl text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Target: {currentExercise?.target_sets}x{currentExercise?.target_reps}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {currentExercise?.coach_notes && (
-            <div className="mt-8 flex items-start gap-4 p-6 bg-amber-500/5 border border-amber-500/10 rounded-[2rem] relative overflow-hidden">
-              <div className="absolute inset-y-0 left-0 w-1.5 bg-amber-500 rounded-full"></div>
-              <AlertCircle className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                 <p className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em]">Nota Tecnica</p>
-                 <p className="text-foreground/70 leading-relaxed font-medium italic">
-                  {currentExercise.coach_notes}
-                </p>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-12 space-y-8">
-            {(() => {
-              const idx = currentSetIndex;
-              const globalSetIdx = (currentExercise.startSetIdx || 0) + idx;
-              const setLog = logs[currentExercise?.id!]?.[globalSetIdx] || { reps: '', weight: '', rpe: '8' };
-              const prevLog = lastPerformance?.logs?.[globalSetIdx];
-
-              return (
-                <div className="space-y-8">
-                  {prevLog && (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="px-6 py-2 flex items-center gap-3 text-[10px] font-black text-primary uppercase tracking-[0.2em] bg-primary/5 w-fit rounded-full border border-primary/10"
-                    >
-                      <History className="w-4 h-4" />
-                      Ultima volta: {prevLog.weight}kg x {prevLog.reps} @ RPE{prevLog.rpe}
-                    </motion.div>
                   )}
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-6 items-end p-5 sm:p-8 rounded-3xl sm:rounded-[2.5rem] bg-secondary/20 border border-white/5 shadow-inner">
-                    <div className="space-y-3">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground text-center block tracking-[0.2em] opacity-50">Ripetizioni</label>
-                      <input 
-                        type="number"
-                        placeholder={(currentExercise?.target_reps_detail?.[idx] ?? currentExercise?.target_reps ?? 10).toString()}
-                        className="w-full bg-background/50 border-0 rounded-2xl py-4 sm:py-6 text-center font-black text-2xl sm:text-3xl focus:ring-2 focus:ring-primary transition-all text-foreground placeholder:text-muted-foreground/20"
-                        value={setLog.reps}
-                        onChange={(e) => updateLog(currentExercise!.id, idx, { reps: e.target.value })}
+                </div>
+              </div>
+              <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-[8px] sm:text-[10px] flex items-center gap-2 opacity-60">
+                <Dumbbell className="w-3 h-3 sm:w-4 h-4 text-primary" />
+                Ex {currentExerciseIndex + 1}/{sessionExercises.length} 
+                {currentExercise?.totalRounds > 1 && ` • G${currentExercise.round}/${currentExercise.totalRounds}`}
+                • S{(currentExercise.startSetIdx || 0) + currentSetIndex + 1}/{currentExercise.setsInRound || currentExercise?.target_sets}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {currentExercise?.rest_seconds > 0 && (
+                <div className="px-3 py-1.5 bg-secondary/30 ring-1 ring-white/5 rounded-lg text-[8px] sm:text-[10px] font-black text-foreground uppercase tracking-widest flex items-center gap-1.5">
+                  <Timer className="w-3 h-3 text-primary" />
+                  {currentExercise.rest_seconds}s
+                </div>
+              )}
+              {currentExercise?.rest_esercizio > 0 && (
+                <div className="px-3 py-1.5 bg-secondary/30 ring-1 ring-white/5 rounded-lg text-[8px] sm:text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
+                  <Timer className="w-3 h-3 text-emerald-500" />
+                  {currentExercise.rest_esercizio}s
+                </div>
+              )}
+              <div className="px-3 py-1.5 bg-primary/10 ring-1 ring-primary/20 rounded-lg text-[8px] sm:text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5">
+                <CheckCircle2 className="w-3 h-3" />
+                Trgt: {currentExercise?.target_sets}x{currentExercise?.target_reps}{currentExercise.is_time_based ? 's' : ''}
+              </div>
+            </div>
+
+            {currentExercise.is_time_based && (
+              <div className="mt-1 sm:mt-8 p-3 sm:p-8 glass-card bg-primary/[0.02] border-primary/10 rounded-xl sm:rounded-[2.5rem] flex flex-col items-center gap-2 sm:gap-8 animate-in zoom-in-95 duration-500">
+                <div className="relative w-28 h-28 sm:w-48 sm:h-48">
+                    <svg className="w-full h-full -rotate-90">
+                      <circle cx="56" cy="56" r="48" className="stroke-white/5 fill-none sm:hidden" strokeWidth="6" />
+                      <circle cx="96" cy="96" r="80" className="stroke-white/5 fill-none hidden sm:block" strokeWidth="8" />
+                      <motion.circle
+                        cx="56" cy="56" r="48"
+                        className="stroke-primary fill-none sm:hidden"
+                        strokeWidth="6"
+                        strokeDasharray={301}
+                        initial={{ strokeDashoffset: 301 }}
+                        animate={{ 
+                          strokeDashoffset: setTimerTime !== null 
+                            ? 301 * (1 - (setTimerTime / (currentExercise.target_reps || 30))) 
+                            : 301 
+                        }}
+                        strokeLinecap="round"
                       />
-                    </div>
-                    <div className="space-y-3">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground text-center block tracking-[0.2em] opacity-50">Carico (kg)</label>
-                      <input 
-                        type="number"
-                        placeholder="0"
-                        className="w-full bg-background/50 border-0 rounded-2xl py-4 sm:py-6 text-center font-black text-2xl sm:text-3xl focus:ring-2 focus:ring-primary transition-all text-foreground placeholder:text-muted-foreground/20"
-                        value={setLog.weight}
-                        onChange={(e) => updateLog(currentExercise!.id, idx, { weight: e.target.value })}
+                      <motion.circle
+                        cx="96" cy="96" r="80"
+                        className="stroke-primary fill-none hidden sm:block"
+                        strokeWidth="8"
+                        strokeDasharray={502}
+                        initial={{ strokeDashoffset: 502 }}
+                        animate={{ 
+                          strokeDashoffset: setTimerTime !== null 
+                            ? 502 * (1 - (setTimerTime / (currentExercise.target_reps || 30))) 
+                            : 502 
+                        }}
+                        strokeLinecap="round"
                       />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-3xl sm:text-5xl font-mono font-black italic text-foreground tracking-tighter">
+                        {setTimerTime ?? currentExercise.target_reps ?? 30}
+                      </span>
+                      <span className="text-[8px] sm:text-[10px] font-black text-primary uppercase tracking-widest mt-0.5">Secondi</span>
                     </div>
-                    <div className="col-span-2 sm:col-span-1 space-y-3">
-                      <label className="text-[10px] uppercase font-black text-muted-foreground text-center block tracking-[0.2em] opacity-50">Sforzo (RPE)</label>
-                      <div className="relative">
+                </div>
+
+                <div className="flex items-center gap-3 sm:gap-4 w-full">
+                    {!isSetTimerRunning && setTimerTime === null ? (
+                      <button 
+                        onClick={() => {
+                          setSetTimerTime(currentExercise.target_reps || 30);
+                          setIsSetTimerRunning(true);
+                          setSetTimerMode('countdown');
+                        }}
+                        className="flex-1 py-3 sm:py-4 bg-primary text-white rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-lg shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Play className="w-4 h-4 fill-current" /> Avvia
+                      </button>
+                    ) : (
+                      <>
+                        <button 
+                          onClick={() => setIsSetTimerRunning(!isSetTimerRunning)}
+                          className={cn(
+                            "flex-1 py-3 sm:py-4 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs active:scale-95 transition-all flex items-center justify-center gap-2",
+                            isSetTimerRunning ? "bg-amber-500/20 text-amber-500 border border-amber-500/20" : "bg-emerald-500 text-white"
+                          )}
+                        >
+                          {isSetTimerRunning ? <><Pause className="w-3.5 h-3.5 fill-current" /> Pausa</> : <><Play className="w-3.5 h-3.5 fill-current" /> Riprendi</>}
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (setTimerTime !== null) {
+                              updateLog(currentExercise.id, currentSetIndex, { reps: setTimerTime.toString() });
+                            }
+                            setIsSetTimerRunning(false);
+                            setSetTimerTime(null);
+                          }}
+                          className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-black uppercase tracking-widest text-[10px] text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                        >
+                          Reset
+                        </button>
+                      </>
+                    )}
+                </div>
+              </div>
+            )}
+
+            {currentExercise?.coach_notes && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-1 sm:mt-8 flex items-start gap-3 sm:gap-4 p-3 sm:p-6 bg-amber-500/5 border border-amber-500/10 rounded-xl sm:rounded-[2rem] relative overflow-hidden backdrop-blur-sm"
+              >
+                <div className="absolute inset-y-0 left-0 w-1 bg-amber-500 rounded-full"></div>
+                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="text-[8px] sm:text-[10px] font-black text-amber-500 uppercase tracking-[0.3em]">Coach</p>
+                  <p className="text-foreground/80 leading-relaxed font-medium italic text-[11px] sm:text-sm">
+                    {currentExercise.coach_notes}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            <div className={cn(
+              "space-y-3 sm:space-y-8",
+              currentExercise.is_time_based ? "mt-1 sm:mt-12" : "mt-4 sm:mt-12"
+            )}>
+              {(() => {
+                const idx = currentSetIndex;
+                const globalSetIdx = (currentExercise.startSetIdx || 0) + idx;
+                const defaultReps = currentExercise.is_time_based 
+                  ? (currentExercise?.target_duration_seconds || currentExercise?.target_reps || 30).toString()
+                  : (currentExercise?.target_reps_detail?.[globalSetIdx] ?? currentExercise?.target_reps ?? 10).toString();
+                const setLog = logs[currentExercise?.id!]?.[globalSetIdx] || { reps: defaultReps, weight: '', rpe: '8', notes: '' };
+                const prevLog = lastPerformance?.logs?.[globalSetIdx];
+
+                return (
+                  <div className="space-y-3 sm:space-y-8">
+                    {prevLog && (
+                      <div className="px-4 py-1.5 flex items-center gap-2 text-[9px] sm:text-[11px] font-black text-primary uppercase tracking-[0.2em] bg-primary/10 w-fit rounded-full border border-primary/20 shadow-sm">
+                        <History className="w-3 h-3 text-primary" />
+                        PB: {prevLog.weight}kg x {prevLog.reps}
+                      </div>
+                    )}
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-6 items-end p-2 sm:p-10 rounded-2xl sm:rounded-[3.5rem] bg-secondary/20 border border-white/5 shadow-2xl backdrop-blur-sm relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+                      <div className="space-y-1 relative z-10 text-center">
+                        <label className="text-[8px] sm:text-[10px] uppercase font-black text-muted-foreground block tracking-[0.3em] opacity-60">
+                          {currentExercise.is_time_based ? 'Sec' : 'Rep'}
+                        </label>
+                        <input 
+                          type="number"
+                          inputMode="numeric"
+                          placeholder={defaultReps}
+                          className="w-full bg-background/40 border border-white/5 rounded-xl sm:rounded-3xl py-3 sm:py-8 text-center font-black text-xl sm:text-4xl focus:ring-4 focus:ring-primary/20 focus:border-primary/50 transition-all text-foreground placeholder:text-muted-foreground/10"
+                          value={setLog.reps}
+                          onChange={(e) => updateLog(currentExercise!.id, idx, { reps: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1 relative z-10 text-center">
+                        <label className="text-[8px] sm:text-[10px] uppercase font-black text-muted-foreground block tracking-[0.3em] opacity-60">
+                          Kg {currentExercise.is_time_based && 'opt'}
+                        </label>
+                        <input 
+                          type="number"
+                          inputMode="decimal"
+                          placeholder="0"
+                          className="w-full bg-background/40 border border-white/5 rounded-xl sm:rounded-3xl py-3 sm:py-8 text-center font-black text-xl sm:text-4xl focus:ring-4 focus:ring-primary/20 focus:border-primary/50 transition-all text-foreground placeholder:text-muted-foreground/10"
+                          value={setLog.weight}
+                          onChange={(e) => updateLog(currentExercise!.id, idx, { weight: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-span-2 sm:col-span-1 space-y-1 relative z-10 text-center">
+                        <label className="text-[8px] sm:text-[10px] uppercase font-black text-muted-foreground block tracking-[0.3em] opacity-60">RPE</label>
                         <select 
-                          className="w-full bg-background/50 border-0 rounded-2xl py-4 sm:py-6 text-center font-black text-2xl sm:text-3xl focus:ring-2 focus:ring-primary appearance-none transition-all text-foreground"
+                          className="w-full bg-background/40 border border-white/5 rounded-xl sm:rounded-3xl py-3 sm:py-8 text-center font-black text-xl sm:text-4xl focus:ring-4 focus:ring-primary/20 focus:border-primary/50 appearance-none transition-all text-foreground"
                           value={setLog.rpe}
                           onChange={(e) => updateLog(currentExercise!.id, idx, { rpe: e.target.value })}
                         >
-                          {[6,7,8,9,10].map(n => <option key={n} value={n} className="bg-background text-foreground">{n}</option>)}
+                          {[6,7,8,9,10].map(n => <option key={n} value={n} className="bg-zinc-900 text-foreground">{n}</option>)}
                         </select>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="px-2">
-                    <input 
-                      type="text"
-                      placeholder="Commenti per questa serie..."
-                      className="w-full bg-transparent border-b-2 border-white/5 py-4 px-2 text-sm text-foreground focus:outline-none focus:border-primary transition-all italic placeholder:text-muted-foreground/30"
-                      value={setLog.notes || ''}
-                      onChange={(e) => updateLog(currentExercise!.id, idx, { notes: e.target.value })}
-                    />
-                  </div>
+                    <div className="px-2">
+                      <input 
+                        type="text"
+                        placeholder="Note serie..."
+                        className="w-full bg-transparent border-b border-white/5 py-2 px-2 text-[11px] text-foreground focus:outline-none focus:border-primary transition-all italic placeholder:text-muted-foreground/30"
+                        value={setLog.notes || ''}
+                        onChange={(e) => updateLog(currentExercise!.id, idx, { notes: e.target.value })}
+                      />
+                    </div>
 
-                  <button
-                    onClick={handleConfirmSet}
-                    disabled={!setLog.reps || !setLog.weight}
-                    className="btn btn-primary w-full py-8 rounded-[2rem] font-black italic tracking-[0.2em] uppercase shadow-2xl shadow-primary/30 transform active:scale-95 transition-all text-xl disabled:opacity-30 disabled:grayscale disabled:scale-100 flex items-center justify-center gap-4"
-                  >
-                    <CheckCircle2 className="w-8 h-8" />
-                    Completa Serie {idx + 1}
-                  </button>
-                </div>
-              );
-            })()}
+                    <button
+                      onClick={handleConfirmSet}
+                      disabled={!setLog.reps || (!currentExercise.is_time_based && !setLog.weight)}
+                      className="btn btn-primary w-full h-14 sm:h-24 rounded-2xl sm:rounded-[2.5rem] font-black italic tracking-[0.1em] sm:tracking-[0.2em] uppercase shadow-2xl shadow-primary/30 transform active:scale-95 transition-all text-base sm:text-2xl disabled:opacity-30 disabled:grayscale disabled:scale-100 flex items-center justify-center gap-3 border-2 border-primary/20"
+                    >
+                      <CheckCircle2 className="w-5 h-5 sm:w-10 h-10" />
+                      Conferma Serie {idx + 1}
+                    </button>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         </motion.div>
       </AnimatePresence>
 
       {/* Footer Navigation Overlay */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-8 bg-gradient-to-t from-background via-background/90 to-transparent z-[70] pointer-events-none">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-6 pointer-events-auto">
+      <div className="fixed bottom-0 left-0 right-0 p-2 sm:p-8 bg-gradient-to-t from-background via-background/90 to-transparent z-[70] pointer-events-none pb-24 sm:pb-32">
+        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 sm:gap-6 pointer-events-auto">
           <button 
             onClick={() => setCurrentExerciseIndex(Math.max(0, currentExerciseIndex - 1))}
-            className="w-20 h-20 glass-interactive rounded-3xl flex items-center justify-center border-white/5 hover:border-primary/20 text-muted-foreground hover:text-primary transition-all active:scale-90 disabled:opacity-20"
+            className="w-14 h-14 sm:w-20 sm:h-20 glass-interactive rounded-2xl sm:rounded-3xl flex items-center justify-center border-white/5 hover:border-primary/20 text-muted-foreground hover:text-primary transition-all active:scale-90 disabled:opacity-20"
             disabled={currentExerciseIndex === 0}
           >
-            <ChevronLeft className="w-8 h-8" />
+            <ChevronLeft className="w-6 h-6 sm:w-8 h-8" />
           </button>
 
           <button 
             onClick={() => setShowExerciseFeedback(true)}
-            className="flex-1 h-20 glass-interactive rounded-3xl border-primary/20 hover:bg-primary/5 text-primary font-black italic tracking-[0.2em] uppercase flex items-center justify-center gap-4 group transition-all active:scale-95"
+            className="flex-1 h-14 sm:h-20 glass-interactive rounded-2xl sm:rounded-3xl border-primary/20 hover:bg-primary/5 text-primary font-black italic tracking-[0.1em] sm:tracking-[0.2em] uppercase flex items-center justify-center gap-2 sm:gap-4 group transition-all active:scale-95 text-xs sm:text-base"
           >
-            {currentExerciseIndex === (sessionExercises.length || 0) - 1 ? 'Termina Allenamento' : 'Prossimo Esercizio'}
-            <ChevronRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+            {currentExerciseIndex === (sessionExercises.length || 0) - 1 ? 'Fine' : 'Prossimo'}
+            <ChevronRight className="w-4 h-4 sm:w-6 h-6 group-hover:translate-x-2 transition-transform" />
           </button>
         </div>
       </div>
@@ -716,33 +872,60 @@ export default function WorkoutSession() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-4">
-                <div className="grid grid-cols-3 gap-3">
-                  {[15, 30, 60].map(sec => (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <div className="absolute top-4 left-6 text-primary">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <textarea
+                        value={restNote}
+                        onChange={(e) => setRestNote(e.target.value)}
+                        placeholder="Come sono andate queste serie? Scrivi qui i tuoi feedback..."
+                        className="w-full bg-white/5 border border-white/10 rounded-[2rem] p-6 pl-14 text-sm text-foreground focus:ring-2 focus:ring-primary focus:bg-white/10 transition-all min-h-[120px] italic placeholder:text-muted-foreground/30"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      {[15, 30, 60].map(sec => (
+                        <button
+                          key={sec}
+                          onClick={() => setRestTimeLeft(prev => (prev || 0) + sec)}
+                          className="py-4 glass-interactive rounded-2xl text-xs font-black italic hover:bg-white/5 active:scale-95 transition-all"
+                        >
+                          +{sec}s
+                        </button>
+                      ))}
+                    </div>
+
                     <button
-                      key={sec}
-                      onClick={() => setRestTimeLeft(prev => (prev || 0) + sec)}
-                      className="py-4 glass-interactive rounded-2xl text-xs font-black italic hover:bg-white/5 active:scale-95 transition-all"
+                      onClick={() => {
+                        const actualRest = restStartTime ? Math.floor((Date.now() - restStartTime) / 1000) : 0;
+                        if (lastLoggedSet) {
+                          const exerciseId = lastLoggedSet.exerciseId;
+                          const setIndex = lastLoggedSet.setIndex;
+                          const globalSetIdx = (currentExercise.startSetIdx || 0) + setIndex;
+                          const updatedExLogs = [...(logs[exerciseId] || [])];
+                          if (updatedExLogs[globalSetIdx]) {
+                            updatedExLogs[globalSetIdx] = {
+                              ...updatedExLogs[globalSetIdx],
+                              notes: [updatedExLogs[globalSetIdx].notes, restNote].filter(Boolean).join(' | '),
+                              actual_rest: actualRest
+                            };
+                            setLogs({ ...logs, [exerciseId]: updatedExLogs });
+                          }
+                        }
+                        setRestNote('');
+                        setIsResting(false);
+                        setRestTimeLeft(null);
+                        setRestStartTime(null);
+                        moveToNextStep(true); // Pass true to skip feedback if 1 set
+                      }}
+                      className="btn btn-primary h-20 rounded-3xl flex items-center justify-center gap-4 font-black italic uppercase tracking-widest text-lg group shadow-xl shadow-primary/20"
                     >
-                      +{sec}s
+                      <SkipForward className="w-6 h-6 group-hover:translate-x-2 transition-transform" /> 
+                      Salta Recupero
                     </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => {
-                    const actualRest = restStartTime ? Math.floor((Date.now() - restStartTime) / 1000) : 0;
-                    if (lastLoggedSet) updateLog(lastLoggedSet.exerciseId, lastLoggedSet.setIndex, { actual_rest: actualRest });
-                    setIsResting(false);
-                    setRestTimeLeft(null);
-                    setRestStartTime(null);
-                    moveToNextStep();
-                  }}
-                  className="btn btn-primary h-20 rounded-3xl flex items-center justify-center gap-4 font-black italic uppercase tracking-widest text-lg group shadow-xl shadow-primary/20"
-                >
-                  <SkipForward className="w-6 h-6 group-hover:translate-x-2 transition-transform" /> 
-                  Salta Recupero
-                </button>
-              </div>
+                  </div>
             </motion.div>
           </motion.div>
         )}
@@ -786,29 +969,7 @@ export default function WorkoutSession() {
               </div>
 
               <button
-                onClick={() => {
-                  const exerciseId = currentExercise?.id;
-                  if (exerciseId && exerciseFeedback) {
-                    const updatedExLogs = [...(logs[exerciseId] || [])];
-                    const lastSetIdx = updatedExLogs.length - 1;
-                    if (lastSetIdx >= 0) {
-                      updatedExLogs[lastSetIdx] = { 
-                        ...updatedExLogs[lastSetIdx], 
-                        notes: [updatedExLogs[lastSetIdx].notes, exerciseFeedback].filter(Boolean).join(' | ')
-                      };
-                      setLogs({ ...logs, [exerciseId]: updatedExLogs });
-                    }
-                  }
-                  setShowExerciseFeedback(false);
-                  setExerciseFeedback('');
-                  setCurrentSetIndex(0);
-                  if (currentExerciseIndex === (sessionExercises.length || 0) - 1) {
-                    endMutation.mutate();
-                  } else {
-                    setCurrentExerciseIndex(currentExerciseIndex + 1);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                }}
+                onClick={completeExerciseAndMove}
                 className="btn btn-primary w-full h-20 rounded-3xl font-black italic uppercase tracking-[0.2em] text-lg shadow-2xl shadow-primary/30"
               >
                 Salva e Continua
@@ -863,7 +1024,7 @@ export default function WorkoutSession() {
                         setShowFullList(false);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className={clsx(
+                      className={cn(
                         "w-full text-left p-6 rounded-[2rem] border transition-all relative overflow-hidden group",
                         isCurrent 
                           ? "bg-primary border-primary shadow-xl shadow-primary/20 scale-[1.02] z-10" 
@@ -873,7 +1034,7 @@ export default function WorkoutSession() {
                       )}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className={clsx(
+                        <span className={cn(
                           "text-[9px] font-black uppercase tracking-[0.2em]",
                           isCurrent ? "text-white/80" : "text-primary"
                         )}>
@@ -881,15 +1042,15 @@ export default function WorkoutSession() {
                         </span>
                         {isCompleted && <CheckCircle2 className="w-4 h-4 text-primary" />}
                       </div>
-                      <div className={clsx(
+                      <div className={cn(
                         "font-black text-xl uppercase italic tracking-tight",
                         isCurrent ? "text-white" : "text-foreground"
                       )}>{ex.name} {ex.totalRounds > 1 && `(Giro ${ex.round})`}</div>
-                      <div className={clsx(
+                      <div className={cn(
                         "text-[10px] font-bold mt-2 flex items-center gap-2",
                         isCurrent ? "text-white/60" : "text-muted-foreground"
                       )}>
-                        <div className={clsx("w-1.5 h-1.5 rounded-full animate-pulse", isCurrent ? "bg-white" : "bg-primary")} />
+                        <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isCurrent ? "bg-white" : "bg-primary")} />
                         {doneSets} / {ex.setsInRound || ex.target_sets} serie completate
                       </div>
                     </button>

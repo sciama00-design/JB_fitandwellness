@@ -10,12 +10,21 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'favicon.svg'],
+      includeAssets: [
+        'favicon.ico', 
+        'apple-touch-icon-180x180.png', 
+        'favicon.svg',
+        'maskable-icon-512x512.png'
+      ],
       manifest: {
         name: 'JB Fit & Wellness',
         short_name: 'JB Fit',
-        description: 'Your Personal Fitness & Wellness Companion',
+        description: 'Il tuo compagno personale per fitness e benessere',
         theme_color: '#0f172a',
+        background_color: '#0f172a',
+        display: 'standalone',
+        start_url: '/',
+        orientation: 'portrait-primary',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -26,6 +35,12 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png'
+          },
+          {
+            src: 'maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       }

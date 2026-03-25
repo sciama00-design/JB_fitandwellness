@@ -45,10 +45,23 @@ export const templateService = {
 
     // 2. Insert Exercises
     const exercisesWithTemplateId = exercises.map((ex, index) => ({
-      ...ex,
-      group_iterations: ex.group_iterations || 1,
-      template_id: newTemplate.id,
+      exercise_library_id: ex.exercise_library_id,
+      name: ex.name,
+      target_sets: ex.target_sets,
+      target_reps: ex.target_reps,
+      target_reps_detail: ex.target_reps_detail,
+      rest_seconds: ex.rest_seconds,
+      rest_esercizio: ex.rest_esercizio,
       order_index: index,
+      video_urls: ex.video_urls || [],
+      image_url: ex.image_url,
+      coach_notes: ex.coach_notes,
+      superset_id: ex.superset_id,
+      group_id: ex.group_id,
+      group_name: ex.group_name,
+      group_iterations: ex.group_iterations || 1,
+      is_time_based: ex.is_time_based || false,
+      template_id: newTemplate.id,
     }));
 
     const { error: exercisesError } = await supabase
@@ -79,10 +92,23 @@ export const templateService = {
 
     // 3. Insert new exercises
     const exercisesWithTemplateId = exercises.map((ex, index) => ({
-      ...ex,
-      group_iterations: ex.group_iterations || 1,
-      template_id: templateId,
+      exercise_library_id: ex.exercise_library_id,
+      name: ex.name,
+      target_sets: ex.target_sets,
+      target_reps: ex.target_reps,
+      target_reps_detail: ex.target_reps_detail,
+      rest_seconds: ex.rest_seconds,
+      rest_esercizio: ex.rest_esercizio,
       order_index: index,
+      video_urls: ex.video_urls || [],
+      image_url: ex.image_url,
+      coach_notes: ex.coach_notes,
+      superset_id: ex.superset_id,
+      group_id: ex.group_id,
+      group_name: ex.group_name,
+      group_iterations: ex.group_iterations || 1,
+      is_time_based: ex.is_time_based || false,
+      template_id: templateId,
     }));
 
     const { error: exercisesError } = await supabase

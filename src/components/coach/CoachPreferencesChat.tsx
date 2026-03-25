@@ -27,7 +27,11 @@ export default function CoachPreferencesChat() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (content: string) => coachPreferenceService.createPreference({ coach_id: user!.id, content }),
+    mutationFn: (content: string) => coachPreferenceService.createPreference({ 
+      coach_id: user!.id, 
+      content,
+      category: 'workout'
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach-preferences'] });
       setNewPreference('');
@@ -115,11 +119,11 @@ export default function CoachPreferencesChat() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-white shadow-2xl border border-slate-700 hover:scale-110 active:scale-95 transition-all group relative"
+        className="w-16 h-16 bg-white/[0.06] rounded-2xl flex items-center justify-center text-foreground shadow-2xl border border-white/[0.06] hover:scale-110 active:scale-95 transition-all group relative"
         title="Preferenze Coach AI"
       >
         <MessageSquare className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-        <div className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-500 rounded-full border-2 border-slate-950 flex items-center justify-center text-[10px] font-bold">
+        <div className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-500 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold">
           {preferences.length}
         </div>
       </button>
@@ -131,7 +135,7 @@ export default function CoachPreferencesChat() {
               initial={{ opacity: 0, y: 100, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 100, scale: 0.95 }}
-              className="w-full max-w-md bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl flex flex-col h-[600px] pointer-events-auto overflow-hidden"
+              className="w-full max-w-md bg-card/60/95 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl flex flex-col h-[600px] pointer-events-auto overflow-hidden"
             >
               {/* Header */}
               <div className="p-6 border-b border-white/5 flex items-center justify-between bg-primary/5">
@@ -140,13 +144,13 @@ export default function CoachPreferencesChat() {
                     <MessageSquare className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Coach Notes</h4>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Istruzioni personali per l'AI</p>
+                    <h4 className="text-sm font-bold text-foreground uppercase tracking-widest italic">Coach Notes</h4>
+                    <p className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-tighter">Istruzioni personali per l'AI</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setIsOpen(false)}
-                  className="p-2 hover:bg-white/5 rounded-full text-slate-500 transition-colors"
+                  className="p-2 hover:bg-white/5 rounded-full text-muted-foreground/40 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -156,11 +160,11 @@ export default function CoachPreferencesChat() {
               <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                 {preferences.length === 0 && !isLoading && (
                   <div className="text-center py-10">
-                    <div className="w-12 h-12 bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Plus className="w-6 h-6 text-slate-600" />
+                    <div className="w-12 h-12 bg-white/[0.04] rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Plus className="w-6 h-6 text-muted-foreground/30" />
                     </div>
-                    <p className="text-slate-500 text-xs font-medium">Nessuna preferenza salvata.</p>
-                    <p className="text-slate-600 text-[10px] mt-1 max-w-[200px] mx-auto">Scrivi come vuoi che l'AI interpreti i tuoi comandi o nomi gergali.</p>
+                    <p className="text-muted-foreground/40 text-xs font-medium">Nessuna preferenza salvata.</p>
+                    <p className="text-muted-foreground/30 text-[10px] mt-1 max-w-[200px] mx-auto">Scrivi come vuoi che l'AI interpreti i tuoi comandi o nomi gergali.</p>
                   </div>
                 )}
 
@@ -177,7 +181,7 @@ export default function CoachPreferencesChat() {
                           <div className="bg-primary/20 border border-primary/30 p-3 rounded-2xl rounded-tr-none min-w-[200px]">
                             <textarea
                               autoFocus
-                              className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-100 resize-none p-0"
+                              className="w-full bg-transparent border-none focus:ring-0 text-sm text-foreground resize-none p-0"
                               value={editContent}
                               onChange={(e) => setEditContent(e.target.value)}
                               onKeyDown={(e) => {
@@ -188,23 +192,23 @@ export default function CoachPreferencesChat() {
                               }}
                             />
                             <div className="flex justify-end gap-2 mt-2">
-                              <button onClick={() => setEditingId(null)} className="p-1 hover:text-red-400 text-slate-500"><X className="w-4 h-4" /></button>
-                              <button onClick={() => handleUpdate(pref.id)} className="p-1 hover:text-emerald-400 text-slate-500"><Check className="w-4 h-4" /></button>
+                              <button onClick={() => setEditingId(null)} className="p-1 hover:text-red-400 text-muted-foreground/40"><X className="w-4 h-4" /></button>
+                              <button onClick={() => handleUpdate(pref.id)} className="p-1 hover:text-emerald-400 text-muted-foreground/40"><Check className="w-4 h-4" /></button>
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-slate-800/80 border border-slate-700 p-4 rounded-2xl rounded-tr-none shadow-sm">
-                            <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{pref.content}</p>
+                          <div className="bg-white/[0.06]/80 border border-white/[0.06] p-4 rounded-2xl rounded-tr-none shadow-sm">
+                            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{pref.content}</p>
                             <div className="flex items-center gap-3 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button 
                                 onClick={() => { setEditingId(pref.id); setEditContent(pref.content); }}
-                                className="text-[10px] font-bold text-slate-500 hover:text-primary uppercase tracking-tighter flex items-center gap-1"
+                                className="text-[10px] font-bold text-muted-foreground/40 hover:text-primary uppercase tracking-tighter flex items-center gap-1"
                               >
                                 <Pencil className="w-3 h-3" /> Modifica
                               </button>
                               <button 
                                 onClick={() => deleteMutation.mutate(pref.id)}
-                                className="text-[10px] font-bold text-slate-500 hover:text-red-500 uppercase tracking-tighter flex items-center gap-1"
+                                className="text-[10px] font-bold text-muted-foreground/40 hover:text-red-500 uppercase tracking-tighter flex items-center gap-1"
                               >
                                 <Trash2 className="w-3 h-3" /> Elimina
                               </button>
@@ -218,7 +222,7 @@ export default function CoachPreferencesChat() {
               </div>
 
               {/* Input Area */}
-              <div className="p-6 border-t border-white/5 bg-slate-950/30">
+              <div className="p-6 border-t border-white/5 bg-white/[0.02]">
                 <form onSubmit={handleAdd} className="flex gap-2">
                   <div className="flex-1 relative">
                     <input
@@ -226,7 +230,7 @@ export default function CoachPreferencesChat() {
                       value={newPreference}
                       onChange={(e) => setNewPreference(e.target.value)}
                       placeholder={isRecording ? "Ascolto in corso..." : "Es: 'X sta per Y'"}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-10 py-2 text-sm text-slate-200 focus:ring-2 focus:ring-primary/30 focus:border-primary/50 outline-none transition-all placeholder:text-slate-600"
+                      className="w-full bg-card/60 border border-white/[0.06] rounded-xl pl-4 pr-10 py-2 text-sm text-foreground/80 focus:ring-2 focus:ring-primary/30 focus:border-primary/50 outline-none transition-all placeholder:text-muted-foreground/25"
                       disabled={isRecording || isProcessing}
                     />
                     {isRecording && (
@@ -242,7 +246,7 @@ export default function CoachPreferencesChat() {
                     disabled={isProcessing}
                     className={cn(
                       "p-2 rounded-xl transition-all relative overflow-hidden",
-                      isRecording ? "bg-red-500 text-white" : "bg-slate-800 text-slate-400 hover:text-white"
+                      isRecording ? "bg-red-500 text-foreground" : "bg-white/[0.06] text-muted-foreground/60 hover:text-foreground"
                     )}
                   >
                     {isProcessing ? (
@@ -257,7 +261,7 @@ export default function CoachPreferencesChat() {
                   <button
                     type="submit"
                     disabled={createMutation.isPending || !newPreference.trim() || isRecording || isProcessing}
-                    className="p-2 bg-primary rounded-xl text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                    className="p-2 bg-primary rounded-xl text-foreground shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
                   >
                     <Send className="w-5 h-5" />
                   </button>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Modal from '../Modal';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -10,9 +11,17 @@ import {
   ExternalLink,
   ChevronRight,
   Trash2,
-  Activity
+  Activity,
+  CheckCircle2,
+  Circle,
+  Plus,
+  Loader2
 } from 'lucide-react';
 import { googleCalendarLink, downloadIcsFile } from '../../lib/calendarUtils';
+import { todoService } from '../../services/todoService';
+import { useAuth } from '../../lib/auth';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 interface DayDetailModalProps {
   date: Date;
@@ -21,12 +30,63 @@ interface DayDetailModalProps {
   sessions?: any[];
   measurements?: any[];
   appointments?: any[];
+  todos?: any[];
   onViewSession?: (sessionId: string) => void;
   onDeleteSession?: (sessionId: string) => void;
 }
 
-export default function DayDetailModal({ date, isOpen, onClose, sessions = [], measurements = [], appointments = [], onViewSession, onDeleteSession }: DayDetailModalProps) {
-  const hasContent = sessions.length > 0 || measurements.length > 0 || appointments.length > 0;
+export default function DayDetailModal({ 
+  date, 
+  isOpen, 
+  onClose, 
+  sessions = [], 
+  measurements = [], 
+  appointments = [], 
+  todos = [],
+  onViewSession, 
+  onDeleteSession
+}: DayDetailModalProps) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [newTodoTitle, setNewTodoTitle] = useState('');
+  const [isAddingTodo, setIsAddingTodo] = useState(false);
+
+  const addTodoMutation = useMutation({
+    mutationFn: (title: string) => todoService.createTodo({
+      user_id: user!.id,
+      title,
+      due_date: date.toISOString(),
+      completed: false,
+      category: 'task'
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-appointments'] }); // If coach calendar uses this
+      setNewTodoTitle('');
+      setIsAddingTodo(false);
+      toast.success('Task aggiunta');
+    }
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, completed }: { id: string, completed: boolean }) => 
+      todoService.toggleTodo(id, completed),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-appointments'] });
+    }
+  });
+
+  const deleteTodoMutation = useMutation({
+    mutationFn: (id: string) => todoService.deleteTodo(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['coach-appointments'] });
+      toast.success('Task eliminata');
+    }
+  });
+
+  const hasContent = sessions.length > 0 || measurements.length > 0 || appointments.length > 0 || todos.length > 0;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={format(date, "EEEE d MMMM yyyy", { locale: it })}>
@@ -84,6 +144,73 @@ export default function DayDetailModal({ date, isOpen, onClose, sessions = [], m
             </div>
           </div>
         )}
+
+        {/* Todos Section */}
+        <div className="space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400/60 mb-2 flex items-center gap-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+              To-Do List
+            </h3>
+            <button 
+              onClick={() => setIsAddingTodo(!isAddingTodo)}
+              className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {isAddingTodo && (
+              <form 
+                onSubmit={(e) => { e.preventDefault(); if(newTodoTitle.trim()) addTodoMutation.mutate(newTodoTitle); }}
+                className="flex gap-2"
+              >
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={newTodoTitle}
+                  onChange={e => setNewTodoTitle(e.target.value)}
+                  placeholder="Aggiungi una task..."
+                  className="flex-1 bg-secondary/20 border border-white/5 rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:border-indigo-500/50 italic placeholder:text-muted-foreground/30"
+                />
+                <button 
+                  type="submit"
+                  disabled={addTodoMutation.isPending || !newTodoTitle.trim()}
+                  className="w-12 h-12 bg-indigo-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 disabled:opacity-50"
+                >
+                  {addTodoMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
+                </button>
+              </form>
+            )}
+
+            {todos.map((todo) => (
+              <div key={todo.id} className="glass-card p-4 rounded-2xl border-white/5 flex items-center justify-between group bg-indigo-400/[0.02] hover:bg-indigo-400/[0.05] transition-all">
+                <div className="flex items-center gap-4 flex-1">
+                  <button 
+                    onClick={() => toggleMutation.mutate({ id: todo.id, completed: !todo.completed })}
+                    className="text-indigo-400 transition-transform active:scale-90"
+                  >
+                    {todo.completed ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6 opacity-40 hover:opacity-100" />}
+                  </button>
+                  <span className={`text-sm italic font-medium transition-all ${todo.completed ? 'text-muted-foreground line-through opacity-40' : 'text-foreground'}`}>
+                    {todo.title}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => { if(confirm('Eliminare?')) deleteTodoMutation.mutate(todo.id); }}
+                  className="w-8 h-8 flex items-center justify-center text-red-500/20 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            
+            {todos.length === 0 && !isAddingTodo && (
+              <p className="text-[10px] text-muted-foreground italic opacity-30 text-center py-4 uppercase tracking-widest">Nessuna task per oggi</p>
+            )}
+          </div>
+        </div>
 
         {/* Sessions Section */}
         {sessions.length > 0 && (
@@ -161,7 +288,7 @@ export default function DayDetailModal({ date, isOpen, onClose, sessions = [], m
           </div>
         )}
 
-        {!hasContent && (
+        {!hasContent && !isAddingTodo && (
           <div className="py-20 glass-card rounded-[3rem] border-dashed border-2 border-white/5 bg-secondary/5 text-center space-y-6">
             <div className="w-20 h-20 bg-muted/10 rounded-[2.5rem] flex items-center justify-center mx-auto border border-white/5">
               <CalendarIcon className="w-10 h-10 text-muted-foreground opacity-10" />

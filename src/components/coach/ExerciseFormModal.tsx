@@ -173,24 +173,24 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
         {/* Nomi */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40 flex items-center gap-2">
               <Globe className="w-3 h-3" /> Nome (EN)
             </label>
             <input
               type="text"
-              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-sm"
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground"
               value={formData.name || ''}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
               placeholder="e.g. Bench Press"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40 flex items-center gap-2">
               <Languages className="w-3 h-3" /> Nome (IT)
             </label>
             <input
               type="text"
-              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-sm text-primary"
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground text-primary"
               value={formData.name_it || ''}
               onChange={e => setFormData({ ...formData, name_it: e.target.value })}
               placeholder="e.g. Panca Piana"
@@ -201,9 +201,9 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
         {/* Categorie */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Gruppo Muscolare</label>
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">Gruppo Muscolare</label>
             <select
-              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground"
               value={formData.muscle_group || ''}
               onChange={e => setFormData({ ...formData, muscle_group: e.target.value })}
             >
@@ -215,9 +215,9 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Attrezzatura</label>
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">Attrezzatura</label>
             <select
-              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground"
               value={formData.equipment || ''}
               onChange={e => setFormData({ ...formData, equipment: e.target.value })}
             >
@@ -229,9 +229,9 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Meccanica</label>
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">Meccanica</label>
             <select
-              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground"
               value={formData.mechanic || ''}
               onChange={e => setFormData({ ...formData, mechanic: e.target.value })}
             >
@@ -243,9 +243,9 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Forza</label>
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">Forza</label>
             <select
-              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground"
               value={formData.force || ''}
               onChange={e => setFormData({ ...formData, force: e.target.value })}
             >
@@ -257,9 +257,9 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Difficoltà</label>
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">Difficoltà</label>
             <select
-              className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground"
               value={formData.difficulty_level || ''}
               onChange={e => setFormData({ ...formData, difficulty_level: e.target.value })}
             >
@@ -272,11 +272,11 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
 
         {/* Video URLs */}
         <div className="space-y-4">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">URL Video (YouTube/Vimeo)</label>
+          <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">URL Video (YouTube/Vimeo)</label>
           <div className="flex gap-2">
             <input
               type="url"
-              className="flex-1 bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground"
               value={videoUrl}
               onChange={e => setVideoUrl(e.target.value)}
               placeholder="Incolla URL video..."
@@ -284,7 +284,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
             <button
               type="button"
               onClick={addVideo}
-              className="px-6 bg-secondary/10 border border-white/5 rounded-2xl text-primary hover:bg-white/5 transition-all"
+              className="px-4 bg-white/[0.04] border border-white/[0.06] rounded-xl text-primary hover:bg-white/[0.06] transition-all"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -292,7 +292,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           
           <div className="space-y-2">
             {formData.video_urls?.map((url, idx) => (
-              <div key={idx} className="flex items-center justify-between bg-secondary/10 border border-white/5 rounded-xl px-4 py-2 group">
+              <div key={idx} className="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 group">
                 <span className="text-[10px] font-medium truncate flex-1 opacity-60">{url}</span>
                 <button
                   type="button"
@@ -308,11 +308,11 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
 
         {/* Immagini */}
         <div className="space-y-4">
-          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Immagini</label>
+          <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">Immagini</label>
           <div className="flex gap-2">
             <input
               type="url"
-              className="flex-1 bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-bold text-xs"
+              className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/20 transition-all font-medium text-sm text-foreground"
               value={imageUrl}
               onChange={e => setImageUrl(e.target.value)}
               placeholder="Incolla URL immagine..."
@@ -320,7 +320,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
             <button
               type="button"
               onClick={addImage}
-              className="px-6 bg-secondary/10 border border-white/5 rounded-2xl text-primary hover:bg-white/5 transition-all"
+              className="px-4 bg-white/[0.04] border border-white/[0.06] rounded-xl text-primary hover:bg-white/[0.06] transition-all"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -345,7 +345,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
         {/* Descrizioni */}
         <div className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Descrizione (IT)</label>
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">Descrizione (IT)</label>
             <textarea
               className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-medium text-sm h-32"
               value={formData.description_it || ''}
@@ -354,7 +354,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Description (EN)</label>
+            <label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/40">Description (EN)</label>
             <textarea
               className="w-full bg-secondary/20 border border-white/5 rounded-2xl px-4 py-3.5 focus:outline-none focus:border-primary/40 transition-all font-medium text-sm h-32 opacity-60"
               value={formData.description || ''}
@@ -369,7 +369,7 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           <button
             type="submit"
             disabled={loading}
-            className="h-14 px-10 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-[11px] flex items-center gap-3 shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-98 transition-all disabled:opacity-50"
+            className="h-10 px-6 btn btn-primary rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
           >
             {loading ? <Save className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Salva Esercizio
