@@ -238,8 +238,10 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation - Hidden during workout sessions */}
-      {!location.pathname.startsWith('/athlete/workout') && (
+      {/* Mobile Bottom Navigation - Hidden during workout sessions and editor */}
+      {!location.pathname.startsWith('/athlete/workout') && 
+       !location.pathname.startsWith('/coach/plans') && 
+       !location.pathname.startsWith('/coach/templates') && (
         <MobileBottomNav items={navItems} isVisible={isNavVisible} role={role as any} />
       )}
     </div>

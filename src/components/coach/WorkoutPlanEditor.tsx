@@ -58,6 +58,7 @@ export default function WorkoutPlanEditor({
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [editingExerciseIndex, setEditingExerciseIndex] = useState<number | null>(null);
+  const [activeMobileTab, setActiveMobileTab] = useState<'info' | 'groups'>('groups');
   
   const storageKey = useMemo(() => {
     const id = initialData?.id || 'new';
@@ -531,11 +532,42 @@ export default function WorkoutPlanEditor({
             </button>
           </div>
         </div>
+
+        {/* Mobile Subtabs */}
+        <div className="lg:hidden mt-6 flex p-1 bg-white/[0.03] border border-white/5 rounded-2xl">
+          <button
+            onClick={() => setActiveMobileTab('info')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+              activeMobileTab === 'info' 
+                ? "bg-primary/10 text-primary border border-primary/20 shadow-lg shadow-primary/5" 
+                : "text-muted-foreground/40 hover:text-muted-foreground/60"
+            )}
+          >
+            <Info className="w-3.5 h-3.5" />
+            Info & Descrizione
+          </button>
+          <button
+            onClick={() => setActiveMobileTab('groups')}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+              activeMobileTab === 'groups' 
+                ? "bg-primary/10 text-primary border border-primary/20 shadow-lg shadow-primary/5" 
+                : "text-muted-foreground/40 hover:text-muted-foreground/60"
+            )}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            Gruppi
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 items-start gap-6 lg:gap-8 px-4 md:px-0">
         {/* Left Column: Details & Description */}
-        <div className="lg:col-span-1 h-fit lg:sticky lg:top-[112px] z-30 space-y-6">
+        <div className={cn(
+          "lg:col-span-1 h-fit lg:sticky lg:top-[112px] z-30 space-y-6",
+          activeMobileTab !== 'info' && "hidden lg:block"
+        )}>
           <div className={cardClasses}>
             <h3 className="text-sm font-semibold text-muted-foreground/50 uppercase tracking-[0.1em] mb-4 flex items-center gap-2">
               <Info className="w-4 h-4" /> Informazioni Base
@@ -603,7 +635,10 @@ export default function WorkoutPlanEditor({
         </div>
 
         {/* Right Column: Groups & Exercises with Transitions */}
-        <div className="lg:col-span-2 space-y-6 min-h-[400px]">
+        <div className={cn(
+          "lg:col-span-2 space-y-6 min-h-[400px]",
+          activeMobileTab !== 'groups' && "hidden lg:block"
+        )}>
           <AnimatePresence mode="wait">
             {!activeGroupId ? (
               <motion.div
