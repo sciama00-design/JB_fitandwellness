@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
+import { VoiceInput } from '../ui/VoiceInput';
 
 interface AthleteFocusObjectivesProps {
   athleteId: string;
@@ -84,6 +85,29 @@ export default function AthleteFocusObjectives({ athleteId, athleteProfile }: At
     } catch (error) {
       console.error("Error in chat:", error);
     } finally {
+      setIsChatting(false);
+    }
+  };
+
+  const handleVoiceResult = async (blob: Blob) => {
+    setIsChatting(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async () => {
+        const base64Audio = (reader.result as string).split(',')[1];
+        const transcription = await geminiService.transcribeAudio(base64Audio);
+        if (transcription) {
+          const updated = await geminiService.chatFocusObjectives(focusObjectives, transcription, athleteProfile);
+          if (updated) {
+            setFocusObjectives(updated);
+            setChatMessage('');
+          }
+        }
+        setIsChatting(false);
+      };
+    } catch (error) {
+      console.error("Error processing voice:", error);
       setIsChatting(false);
     }
   };
@@ -176,24 +200,32 @@ export default function AthleteFocusObjectives({ athleteId, athleteProfile }: At
                 <MessageSquare className="w-3.5 h-3.5" />
                 Aggiorna la strategia con l'AI
               </div>
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleChatSend()}
-                  placeholder="Es: Cambia il focus sulla forza esplosiva o aggiungi milestone per lo squat..."
-                  className="flex-1 bg-background/60 border border-white/5 text-foreground rounded-xl px-5 py-4 outline-none focus:border-primary/40 transition-all text-sm font-medium placeholder:text-muted-foreground/30 shadow-inner"
-                  disabled={isChatting}
-                />
-                <button
-                  onClick={handleChatSend}
-                  disabled={isChatting || !chatMessage.trim()}
-                  className="h-[52px] w-[52px] bg-primary text-white rounded-xl flex items-center justify-center shrink-0 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-xl shadow-primary/20"
-                >
-                  {isChatting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                </button>
-              </div>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleChatSend()}
+                    placeholder="Es: Cambia il focus sulla forza esplosiva o aggiungi milestone per lo squat..."
+                    className="flex-1 bg-background/60 border border-white/5 text-foreground rounded-xl px-5 py-4 outline-none focus:border-primary/40 transition-all text-sm font-medium placeholder:text-muted-foreground/30 shadow-inner"
+                    disabled={isChatting}
+                  />
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={handleChatSend}
+                      disabled={isChatting || !chatMessage.trim()}
+                      className="h-[52px] w-[52px] bg-primary text-white rounded-xl flex items-center justify-center shrink-0 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 shadow-xl shadow-primary/20"
+                    >
+                      {isChatting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                    </button>
+                    <VoiceInput 
+                      onAudioBlob={handleVoiceResult}
+                      isProcessing={isChatting}
+                      size="lg"
+                      className="!rounded-xl"
+                    />
+                  </div>
+                </div>
             </div>
           </motion.div>
         )}

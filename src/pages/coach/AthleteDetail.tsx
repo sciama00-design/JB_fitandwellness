@@ -34,6 +34,8 @@ import AthleteBriefing from '../../components/coach/AthleteBriefing';
 import AthleteFocusObjectives from '../../components/coach/AthleteFocusObjectives';
 import { appointmentService } from '../../services/appointmentService';
 import { dietService } from '../../services/dietService';
+import { athleteService } from '../../services/athleteService';
+import AthleteAnamnesisWorkflow from '../../components/coach/AthleteAnamnesisWorkflow';
 import { AppTabs, AppTabContent } from '../../components/ui/Tabs';
 import clsx from 'clsx';
 
@@ -58,6 +60,7 @@ export default function AthleteDetail() {
 
   const [isAddMeasurementOpen, setIsAddMeasurementOpen] = useState(false);
   const [isLoadTemplateOpen, setIsLoadTemplateOpen] = useState(false);
+  const [isAnamnesisOpen, setIsAnamnesisOpen] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -212,6 +215,14 @@ export default function AthleteDetail() {
         </div>
         
         <div className="flex items-center gap-2 pl-13 sm:pl-0">
+          <button
+            onClick={() => setIsAnamnesisOpen(true)}
+            className="h-9 px-4 bg-white/[0.04] hover:bg-white/[0.08] text-foreground/80 rounded-lg font-semibold text-[11px] tracking-wide border border-white/[0.06] transition-all flex items-center gap-2"
+          >
+            <ClipboardList className="w-3.5 h-3.5 text-primary" />
+            <span className="hidden sm:inline">Workflow Anamnesi</span>
+            <span className="sm:hidden">Anamnesi</span>
+          </button>
           <Link 
             to={`/coach/plans/new?athleteId=${id}`} 
             className="btn btn-primary h-9 px-4 rounded-lg flex items-center gap-2"
@@ -248,6 +259,8 @@ export default function AthleteDetail() {
                 <div className="space-y-3">
                   {[
                     { label: 'Nome Completo', val: `${athlete.first_name} ${athlete.last_name}` },
+                    { label: 'Data di Nascita', val: athlete.birth_date ? new Date(athlete.birth_date).toLocaleDateString('it-IT') : 'Non nota' },
+                    { label: 'Età', val: athleteService.calculateAge(athlete.birth_date) || '-' },
                     { label: 'Email', val: athlete.email || 'Non fornito' },
                     { label: 'Iscrizione', val: new Date(athlete.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' }) },
                     { label: 'ID', val: athlete.id.substring(0, 8).toUpperCase() },
@@ -410,7 +423,7 @@ export default function AthleteDetail() {
               initialData={dietPlan ? {
                 weight: athlete.weight,
                 height: athlete.height,
-                age: athlete.age,
+                age: athleteService.calculateAge(athlete.birth_date) || 30,
                 gender: athlete.gender,
                 activityLevel: athlete.activity_level,
                 deficit: athlete.target_deficit,
@@ -546,6 +559,16 @@ export default function AthleteDetail() {
         onClose={() => setIsLoadTemplateOpen(false)}
         onSelect={(templateId) => loadTemplateMutation.mutate(templateId)}
         isSubmitting={loadTemplateMutation.isPending}
+      />
+
+      <AthleteAnamnesisWorkflow
+        athlete={athlete}
+        isOpen={isAnamnesisOpen}
+        onClose={() => setIsAnamnesisOpen(false)}
+        onComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ['athlete-detail', id] });
+          toast.success('Anamnesi completata con successo');
+        }}
       />
     </div>
   );

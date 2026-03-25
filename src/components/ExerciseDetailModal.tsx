@@ -33,7 +33,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 md:p-10">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-0 md:p-6 lg:p-10">
       {/* Backdrop */}
       <motion.div 
         initial={{ opacity: 0 }}
@@ -49,7 +49,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 40 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="relative glass-card w-full max-w-6xl h-[90vh] md:h-auto max-h-[95vh] rounded-[3.5rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row border-white/10 bg-card/40 backdrop-blur-3xl"
+        className="relative glass-card w-full max-w-6xl h-full md:h-auto md:max-h-[90vh] rounded-none md:rounded-[3.5rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row border-white/10 bg-card/40 backdrop-blur-3xl"
       >
         
         {/* Close Button - Mobile Top Right */}
@@ -61,7 +61,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
         </button>
 
         {/* Left Side: Images/Media */}
-        <div className="w-full md:w-1/2 relative bg-background/40 flex flex-col h-[45%] md:h-auto min-h-[350px] md:min-h-0 overflow-hidden border-r border-white/5">
+        <div className="w-full md:w-1/2 relative bg-background/40 flex flex-col h-[40vh] md:h-auto min-h-[300px] md:min-h-0 overflow-hidden border-b md:border-b-0 md:border-r border-white/5">
           <AnimatePresence mode="wait">
             {hasImages ? (
               <motion.div 
@@ -125,7 +125,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
         </div>
 
         {/* Right Side: Information */}
-        <div className="w-full md:w-1/2 flex flex-col p-10 md:p-16 bg-gradient-to-br from-secondary/10 to-transparent overflow-hidden min-h-0 flex-1 relative">
+        <div className="w-full md:w-1/2 flex flex-col p-6 md:p-16 bg-gradient-to-br from-secondary/10 to-transparent overflow-hidden min-h-0 flex-1 relative">
           
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl opacity-50 pointer-events-none"></div>
 
@@ -142,7 +142,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
                   </span>
                 )}
               </div>
-              <h2 className="text-4xl md:text-5xl font-black text-foreground leading-[0.9] italic uppercase tracking-tighter">{exercise.name_it || exercise.name}</h2>
+              <h2 className="text-2xl md:text-5xl font-black text-foreground leading-[1.1] md:leading-[0.9] italic uppercase tracking-tighter">{exercise.name_it || exercise.name}</h2>
             </div>
             
             {/* Action Buttons */}
@@ -182,43 +182,43 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 gap-6 mb-12 shrink-0 relative z-10">
-            <div className="p-6 rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-primary/20 transition-all">
-              <div className="flex items-center gap-3 text-primary/60 mb-2 font-black uppercase tracking-[0.2em] text-[9px]">
+          <div className="grid grid-cols-2 gap-4 md:gap-6 mb-8 md:mb-12 shrink-0 relative z-10">
+            <div className="p-4 md:p-6 rounded-2xl md:rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-primary/20 transition-all">
+              <div className="flex items-center gap-3 text-primary/60 mb-2 font-black uppercase tracking-[0.2em] text-[8px] md:text-[9px]">
                 <Target className="w-3.5 h-3.5" />
                 Primario
               </div>
-              <p className="text-foreground text-base font-black italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">
+              <p className="text-foreground text-sm md:text-base font-black italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">
                 {translateExerciseTerm('muscle_groups', exercise.muscle_group) || 'Asset'}
               </p>
             </div>
             
-            <div className="p-6 rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-amber-500/20 transition-all">
-              <div className="flex items-center gap-3 text-amber-500/60 mb-2 font-black uppercase tracking-[0.2em] text-[9px]">
+            <div className="p-4 md:p-6 rounded-2xl md:rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-amber-500/20 transition-all">
+              <div className="flex items-center gap-3 text-amber-500/60 mb-2 font-black uppercase tracking-[0.2em] text-[8px] md:text-[9px]">
                 <Flame className="w-3.5 h-3.5" />
                 Sinergico
               </div>
-              <p className="text-foreground text-base font-black italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">
+              <p className="text-foreground text-sm md:text-base font-black italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">
                 {translateExerciseTerm('muscle_groups', exercise.muscle_group_secondary) || 'Complementare'}
               </p>
             </div>
 
-            <div className="p-6 rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-indigo-500/20 transition-all">
-              <div className="flex items-center gap-3 text-indigo-500/60 mb-2 font-black uppercase tracking-[0.2em] text-[9px]">
+            <div className="p-4 md:p-6 rounded-2xl md:rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-indigo-500/20 transition-all">
+              <div className="flex items-center gap-3 text-indigo-500/60 mb-2 font-black uppercase tracking-[0.2em] text-[8px] md:text-[9px]">
                 <Shield className="w-3.5 h-3.5" />
                 Attrezzatura
               </div>
-              <p className="text-foreground text-base font-black italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">
+              <p className="text-foreground text-sm md:text-base font-black italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">
                 {translateExerciseTerm('equipment', exercise.equipment) || 'Corpo Libero'}
               </p>
             </div>
 
-            <div className="p-6 rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-rose-500/20 transition-all">
-              <div className="flex items-center gap-3 text-rose-500/60 mb-2 font-black uppercase tracking-[0.2em] text-[9px]">
+            <div className="p-4 md:p-6 rounded-2xl md:rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-rose-500/20 transition-all">
+              <div className="flex items-center gap-3 text-rose-500/60 mb-2 font-black uppercase tracking-[0.2em] text-[8px] md:text-[9px]">
                 <Zap className="w-3.5 h-3.5" />
                 Forza / Meccanica
               </div>
-              <p className="text-foreground text-base font-black italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">
+              <p className="text-foreground text-sm md:text-base font-black italic uppercase tracking-tight group-hover:translate-x-1 transition-transform">
                 {translateExerciseTerm('force', exercise.force) || 'Isolamento'}
               </p>
             </div>

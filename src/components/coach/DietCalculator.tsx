@@ -33,6 +33,7 @@ import { useAuth } from '../../lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import clsx from 'clsx';
+import { VoiceInput } from '../ui/VoiceInput';
 
 interface DietCalculatorProps {
   athleteId?: string;
@@ -209,6 +210,34 @@ export default function DietCalculator({ athleteId, initialData, athleteProfile,
     } catch (error) {
       console.error("Error in chat:", error);
     } finally {
+      setIsChatting(false);
+    }
+  };
+
+  const handleVoiceResult = async (blob: Blob) => {
+    setIsChatting(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async () => {
+        const base64Audio = (reader.result as string).split(',')[1];
+        const transcription = await geminiService.transcribeAudio(base64Audio);
+        if (transcription) {
+          const updated = await geminiService.chatDietDirectives(aiGuidelines, transcription, {
+            weight,
+            targetKcal: results!.targetKcal,
+            macros: results!.macros
+          });
+          if (updated) {
+            setAiGuidelines(updated);
+            toast.success("Direttive aggiornate via audio");
+          }
+        }
+        setIsChatting(false);
+      };
+    } catch (error) {
+      console.error("Error processing voice:", error);
+      toast.error("Errore nel processamento dell'audio");
       setIsChatting(false);
     }
   };
@@ -654,6 +683,12 @@ export default function DietCalculator({ athleteId, initialData, athleteProfile,
                   >
                     {isChatting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </button>
+                  <VoiceInput 
+                    onAudioBlob={handleVoiceResult}
+                    isProcessing={isChatting}
+                    size="md"
+                    className="!rounded-lg"
+                  />
                 </div>
               </div>
             </motion.div>

@@ -1,22 +1,18 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Send, Trash2, X, Plus, Pencil, Check, Mic, Square, Loader2 } from 'lucide-react';
+import { MessageSquare, Send, Trash2, X, Plus, Pencil, Check } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { coachPreferenceService } from '../../services/coachPreferenceService';
 import { useAuth } from '../../lib/auth';
 import { geminiService } from '../../services/geminiService';
-import { cn } from '../../lib/utils';
+import { VoiceInput } from '../ui/VoiceInput';
 
 export default function CoachPreferencesChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [newPreference, setNewPreference] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -38,39 +34,7 @@ export default function CoachPreferencesChat() {
     },
   });
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        await processPreferenceAudio(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      alert("Impossibile accedere al microfono.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const processPreferenceAudio = async (blob: Blob) => {
+  const handleAudioResult = async (blob: Blob) => {
     setIsProcessing(true);
     try {
       const reader = new FileReader();
@@ -90,6 +54,7 @@ export default function CoachPreferencesChat() {
       setIsProcessing(false);
     }
   };
+
 
   const deleteMutation = useMutation({
     mutationFn: coachPreferenceService.deletePreference,
@@ -229,38 +194,22 @@ export default function CoachPreferencesChat() {
                       type="text"
                       value={newPreference}
                       onChange={(e) => setNewPreference(e.target.value)}
-                      placeholder={isRecording ? "Ascolto in corso..." : "Es: 'X sta per Y'"}
+                      placeholder="Es: 'X sta per Y'"
                       className="w-full bg-card/60 border border-white/[0.06] rounded-xl pl-4 pr-10 py-2 text-sm text-foreground/80 focus:ring-2 focus:ring-primary/30 focus:border-primary/50 outline-none transition-all placeholder:text-muted-foreground/25"
-                      disabled={isRecording || isProcessing}
+                      disabled={isProcessing}
                     />
-                    {isRecording && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                      </div>
-                    )}
                   </div>
                   
-                  <button
-                    type="button"
-                    onClick={isRecording ? stopRecording : startRecording}
-                    disabled={isProcessing}
-                    className={cn(
-                      "p-2 rounded-xl transition-all relative overflow-hidden",
-                      isRecording ? "bg-red-500 text-foreground" : "bg-white/[0.06] text-muted-foreground/60 hover:text-foreground"
-                    )}
-                  >
-                    {isProcessing ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : isRecording ? (
-                      <Square className="w-5 h-5 fill-current" />
-                    ) : (
-                      <Mic className="w-5 h-5" />
-                    )}
-                  </button>
+                  <VoiceInput 
+                    onAudioBlob={handleAudioResult}
+                    isProcessing={isProcessing}
+                    size="md"
+                    className="!rounded-xl"
+                  />
 
                   <button
                     type="submit"
-                    disabled={createMutation.isPending || !newPreference.trim() || isRecording || isProcessing}
+                    disabled={createMutation.isPending || !newPreference.trim() || isProcessing}
                     className="p-2 bg-primary rounded-xl text-foreground shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
                   >
                     <Send className="w-5 h-5" />

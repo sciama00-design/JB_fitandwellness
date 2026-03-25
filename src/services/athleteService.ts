@@ -31,5 +31,28 @@ export const athleteService = {
 
     if (error) throw error;
     return data;
+  },
+
+  async updateProfile(id: string, updates: any) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) throw error;
+    return data;
+  },
+
+  calculateAge(birthDate: string | null): number | null {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
   }
 };

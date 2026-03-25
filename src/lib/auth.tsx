@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean;
   signOut: () => Promise<void>;
   role: 'coach' | 'athlete' | null;
+  onboardingCompleted: boolean;
   initialized: boolean;
 }
 
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   signOut: async () => {},
   role: null,
+  onboardingCompleted: false,
   initialized: false,
 });
 
@@ -25,13 +27,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<'coach' | 'athlete' | null>(null);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   const fetchRole = async (userId: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, onboarding_completed')
         .eq('id', userId)
         .single();
 
@@ -42,6 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (data) {
         setRole(data.role);
+        setOnboardingCompleted(data.onboarding_completed ?? false);
         return data.role;
       }
       return null;
@@ -65,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await fetchRole(currentSession.user.id);
         } else {
           setRole(null);
+          setOnboardingCompleted(false);
         }
       } catch (error) {
         console.error('Auth handler error:', error);
@@ -102,8 +107,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loading,
     signOut,
     role,
+    onboardingCompleted,
     initialized
-  }), [user, session, loading, role, initialized]);
+  }), [user, session, loading, role, onboardingCompleted, initialized]);
 
   return (
     <AuthContext.Provider value={value}>

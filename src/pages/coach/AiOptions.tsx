@@ -1,8 +1,8 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Sparkles, Dumbbell, Apple, Brain, Plus, Trash2, Pencil, Check, X, 
-  Mic, Square, Loader2, Send, Search
+  Loader2, Send, Search
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { coachPreferenceService } from '../../services/coachPreferenceService';
@@ -11,14 +11,16 @@ import { exerciseService } from '../../services/exerciseService';
 import { useAuth } from '../../lib/auth';
 import { geminiService } from '../../services/geminiService';
 import { AppTabs, AppTabContent } from '../../components/ui/Tabs';
-import { cn } from '../../lib/utils';
 import { toast } from 'sonner';
 import { ModelSelector } from '../../components/ai/ModelSelector';
+import { AiOnboarding } from '../../components/ai/AiOnboarding';
+import { VoiceInput } from '../../components/ui/VoiceInput';
 
 type Category = 'workout' | 'nutrition' | 'strategic' | 'onboarding';
 
 export default function AiOptions() {
   const [activeTab, setActiveTab] = useState<Category>('workout');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { user } = useAuth();
 
   const tabs = [
@@ -103,17 +105,27 @@ export default function AiOptions() {
                 <div className="absolute inset-0 bg-primary/10 blur-3xl rounded-full" />
             </div>
             <div className="space-y-3 max-w-md">
-              <h2 className="text-2xl font-black text-foreground uppercase italic">Area Onboarding AI</h2>
+              <h2 className="text-2xl font-black text-foreground uppercase italic">Configurazione Guidata</h2>
               <p className="text-muted-foreground/60 font-medium text-sm">
-                Configura il tuo assistente per la prima volta. Prossimamente qui troverai un workflow guidato per personalizzare l'esperienza AI del tuo coaching.
+                Riavvia la procedura di configurazione per ridefinire le tue basi di coaching e lo stile del tuo assistente IA.
               </p>
             </div>
             <button 
-                className="px-8 py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all opacity-50 cursor-not-allowed uppercase tracking-widest text-xs"
-                disabled
+                onClick={() => setShowOnboarding(true)}
+                className="px-8 py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest text-xs"
             >
-                Inizia Configurazione (Coming Soon)
+                Inizia Configurazione
             </button>
+
+            {showOnboarding && (
+              <AiOnboarding 
+                onClose={() => setShowOnboarding(false)} 
+                onComplete={() => {
+                  setShowOnboarding(false);
+                  window.location.reload();
+                }} 
+              />
+            )}
           </div>
         </AppTabContent>
       </AppTabs>
@@ -134,10 +146,7 @@ function PreferenceCategoryManager({ category, coachId }: { category: Category; 
   const [newPreference, setNewPreference] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
   const queryClient = useQueryClient();
 
   const { data: preferences = [], isLoading } = useQuery({
@@ -158,39 +167,7 @@ function PreferenceCategoryManager({ category, coachId }: { category: Category; 
     },
   });
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        await processPreferenceAudio(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      toast.error("Impossibile accedere al microfono.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const processPreferenceAudio = async (blob: Blob) => {
+  const handleAudioResult = async (blob: Blob) => {
     setIsProcessing(true);
     try {
       const reader = new FileReader();
@@ -207,9 +184,11 @@ function PreferenceCategoryManager({ category, coachId }: { category: Category; 
       };
     } catch (error) {
       console.error("Error processing audio:", error);
+      toast.error("Errore nel processamento dell'audio.");
       setIsProcessing(false);
     }
   };
+
 
   const deleteMutation = useMutation({
     mutationFn: coachPreferenceService.deletePreference,
@@ -293,30 +272,21 @@ function PreferenceCategoryManager({ category, coachId }: { category: Category; 
               type="text"
               value={newPreference}
               onChange={(e) => setNewPreference(e.target.value)}
-              placeholder={isRecording ? "Ascolto..." : "Inserisci una direttiva..."}
+              placeholder="Inserisci una direttiva..."
               className="w-full bg-card/40 border border-white/5 rounded-xl pl-4 pr-10 py-3 text-sm text-foreground/70 focus:ring-2 focus:ring-primary/20 focus:border-primary/20 outline-none transition-all placeholder:text-muted-foreground/20 font-medium"
-              disabled={isRecording || isProcessing}
+              disabled={isProcessing}
             />
-            {isRecording && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
           </div>
           
-          {category === 'workout' && (
-            <button
-                type="button"
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={isProcessing}
-                className={cn(
-                "p-3 rounded-xl transition-all",
-                isRecording ? "bg-red-500 text-white" : "bg-white/[0.05] text-muted-foreground/50 hover:text-foreground border border-white/5"
-                )}
-            >
-                {isProcessing ? <Loader2 size={20} className="animate-spin" /> : isRecording ? <Square size={20} fill="currentColor" /> : <Mic size={20} />}
-            </button>
-          )}
+          <VoiceInput 
+            onAudioBlob={handleAudioResult}
+            isProcessing={isProcessing}
+            size="md"
+          />
 
           <button
             type="submit"
-            disabled={createMutation.isPending || !newPreference.trim() || isRecording || isProcessing}
+            disabled={createMutation.isPending || !newPreference.trim() || isProcessing}
             className="p-3 bg-primary text-white rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
           >
             <Send size={20} />

@@ -43,13 +43,13 @@ export default function ExerciseCard({ exercise, onInfo, onEdit, isCoach }: Exer
             </div>
 
             {/* Content */}
-            <div className="min-w-0 flex-1 py-1">
-              <h3 className="font-black text-[12px] text-foreground/90 italic uppercase tracking-normal leading-[1.2] group-hover:text-primary transition-colors line-clamp-2 min-h-[2.4em] flex items-center">
+            <div className="min-w-0 flex-1 py-0.5">
+              <h3 className="font-black text-[13px] text-foreground/90 italic uppercase tracking-normal leading-[1.2] group-hover:text-primary transition-colors line-clamp-2 min-h-[2.4em] flex items-center">
                 {exercise.name_it || exercise.name}
               </h3>
               <div className="flex items-center gap-1.5 mt-1 opacity-50 group-hover:opacity-100 transition-opacity">
                 <Target className="w-3 h-3 text-primary shrink-0" />
-                <span className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.2em] truncate">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.1em] truncate">
                   {translateExerciseTerm('muscle_groups', exercise.muscle_group) || 'Asset'}
                 </span>
               </div>
@@ -89,18 +89,18 @@ export default function ExerciseCard({ exercise, onInfo, onEdit, isCoach }: Exer
         {(exercise.force || exercise.mechanic || exercise.equipment) && (
           <div className="flex items-center gap-1.5 pt-2.5 border-t border-white/5 mt-auto overflow-hidden">
             {exercise.force && (
-              <span className="px-1.5 py-0.5 text-[6.5px] font-black uppercase tracking-wider bg-amber-500/5 text-amber-500/40 rounded border border-amber-500/10 flex items-center gap-1 shrink-0 group-hover:bg-amber-500/10 group-hover:text-amber-500 group-hover:border-amber-500/20 transition-all">
+              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-500/5 text-amber-500/40 rounded border border-amber-500/10 flex items-center gap-1 shrink-0 group-hover:bg-amber-500/10 group-hover:text-amber-500 group-hover:border-amber-500/20 transition-all">
                 <Zap className="w-2 h-2" />
                 {translateExerciseTerm('force', exercise.force)}
               </span>
             )}
             {exercise.mechanic && (
-              <span className="px-1.5 py-0.5 text-[6.5px] font-black uppercase tracking-wider bg-blue-500/5 text-blue-500/40 rounded border border-blue-500/10 shrink-0 group-hover:bg-blue-500/10 group-hover:text-blue-500 group-hover:border-blue-500/20 transition-all">
+              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-blue-500/5 text-blue-500/40 rounded border border-blue-500/10 shrink-0 group-hover:bg-blue-500/10 group-hover:text-blue-500 group-hover:border-blue-500/20 transition-all">
                 {translateExerciseTerm('mechanic', exercise.mechanic)}
               </span>
             )}
             {exercise.equipment && (
-              <span className="px-1.5 py-0.5 text-[6.5px] font-black uppercase tracking-wider bg-primary/5 text-primary/40 rounded border border-primary/10 truncate group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-all">
+              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-primary/5 text-primary/40 rounded border border-primary/10 truncate group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-all">
                 {translateExerciseTerm('equipment', exercise.equipment)}
               </span>
             )}

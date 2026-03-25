@@ -39,14 +39,23 @@ export const measurementService = {
     };
 
     // If it exists, we include the ID to perform a PK-based upsert
-    const { data, error } = await supabase
+    const { data: measurementData, error: measurementError } = await supabase
       .from('body_measurements')
       .upsert(existing ? { ...payload, id: existing.id } : payload)
       .select()
       .single();
     
-    if (error) throw error;
-    return data as BodyMeasurement;
+    if (measurementError) throw measurementError;
+
+    // Update the profile weight as well
+    if (payload.weight) {
+      await supabase
+        .from('profiles')
+        .update({ weight: payload.weight })
+        .eq('id', payload.athlete_id);
+    }
+
+    return measurementData as BodyMeasurement;
   },
 
   async deleteMeasurement(id: string) {

@@ -12,6 +12,17 @@ export type Profile = {
   disliked_foods: string[] | null;
   schedule_constraints: string | null;
   focus_objectives: string | null;
+  onboarding_completed: boolean;
+  birth_date: string | null;
+  gender: 'M' | 'F' | null;
+  height: number | null;
+  weight: number | null;
+  activity_level: string | null;
+  experience_level: string | null;
+  injuries: string | null;
+  equipment: string | null;
+  training_frequency: number | null;
+  target_deficit: number | null;
 };
 
 export type ExerciseLibrary = {

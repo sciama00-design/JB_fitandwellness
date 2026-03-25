@@ -20,9 +20,10 @@ import { Drawer as VaulDrawer } from 'vaul';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { Outlet, Navigate, Link } from 'react-router-dom';
+import { AiOnboarding } from './ai/AiOnboarding';
 
 export default function Layout({ children }: { children?: React.ReactNode }) {
-  const { loading, user, role, signOut, initialized } = useAuth();
+  const { loading, user, role, signOut, initialized, onboardingCompleted } = useAuth();
   const {
     activeAthlete,
     athleteList,
@@ -243,6 +244,10 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
        !location.pathname.startsWith('/coach/plans') && 
        !location.pathname.startsWith('/coach/templates') && (
         <MobileBottomNav items={navItems} isVisible={isNavVisible} role={role as any} />
+      )}
+      {/* AI Onboarding Overlay */}
+      {role === 'coach' && !onboardingCompleted && (
+        <AiOnboarding onComplete={() => window.location.reload()} />
       )}
     </div>
   );

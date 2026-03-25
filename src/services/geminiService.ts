@@ -487,24 +487,28 @@ export const geminiService = {
     );
   },
 
-  async processWorkoutAudio(audioBase64: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string) {
+  async transcribeAudio(audioBase64: string) {
     if (!API_KEY) return null;
     const model = getModel();
 
-    // 1. First, we need the transcription to understand what the coach said
-    const transcriptionPrompt = `Trascrivi fedelmente questo audio di un coach di fitness che descrive un allenamento. Rispondi solo con la trascrizione.`;
+    const prompt = `Trascrivi fedelmente questo audio in italiano. Rispondi SOLO con la trascrizione testuale, senza commenti o altro.`;
     
-    let transcription = "";
     try {
-      const transResult = await model.generateContent([
-        transcriptionPrompt,
+      const result = await model.generateContent([
+        prompt,
         { inlineData: { mimeType: "audio/webm", data: audioBase64 } }
       ]);
-      transcription = transResult.response.text().trim();
+      return result.response.text().trim();
     } catch (e) {
       console.error("Transcription failed", e);
-      return { error: "Trascrizione fallita." };
+      return null;
     }
+  },
+
+  async processWorkoutAudio(audioBase64: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string) {
+    if (!API_KEY) return null;
+    
+    const transcription = await this.transcribeAudio(audioBase64);
 
     if (!transcription) return { error: "Audio vuoto o non comprensibile." };
 

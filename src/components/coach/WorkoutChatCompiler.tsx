@@ -4,6 +4,7 @@ import { geminiService } from '../../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
+import { VoiceInput } from '../ui/VoiceInput';
 
 interface WorkoutChatCompilerProps {
   onResult: (result: { exercises: any[], transcription?: string, action_taken?: 'append' | 'modify' }) => void;
@@ -61,6 +62,39 @@ export default function WorkoutChatCompiler({ onResult, existingMappings, curren
     }
   };
 
+  const handleAudioResult = async (blob: Blob) => {
+    setIsProcessing(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async () => {
+        const base64Audio = (reader.result as string).split(',')[1];
+        const result = await geminiService.processWorkoutAudio(
+          base64Audio,
+          existingMappings,
+          currentPlan,
+          preferences,
+          user?.id
+        );
+
+        if (result && result.exercises) {
+          onResult(result);
+          setInput('');
+          if (storageKey) localStorage.removeItem(storageKey);
+          setIsExpanded(false);
+        } else {
+          const errorMsg = "Non sono riuscito a interpretare l'audio. L'AI ha risposto: " + (result ? JSON.stringify(result) : "Nessuna risposta.");
+          alert(errorMsg);
+        }
+        setIsProcessing(false);
+      };
+    } catch (error) {
+      console.error("Error processing workout audio:", error);
+      alert("Errore tecnico audio: " + (error as Error).message);
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {isExpanded ? (
@@ -104,7 +138,11 @@ export default function WorkoutChatCompiler({ onResult, existingMappings, curren
                 }}
               />
               <div className="absolute bottom-4 right-4 flex items-center gap-2">
-                <p className="text-[10px] text-muted-foreground/30 font-medium italic pr-2">Invio per compilare</p>
+                <VoiceInput 
+                  onAudioBlob={handleAudioResult}
+                  isProcessing={isProcessing}
+                  size="md"
+                />
                 <button
                   type="submit"
                   disabled={!input.trim() || isProcessing}
