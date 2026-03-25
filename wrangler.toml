@@ -1,13 +1,7 @@
 # Cloudflare Pages Configuration
 name = "jb-fitandwellness"
 compatibility_date = "2024-03-25"
-
-[build]
-command = "npm run build"
-output_dir = "dist"
-
-[build.upload]
-format = "assets"
+pages_build_output_dir = "dist"
 
 [vars]
 # These are build-time variables for Vite. 
