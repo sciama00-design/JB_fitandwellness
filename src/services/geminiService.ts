@@ -15,6 +15,10 @@ import { tools as toolsExtract } from './ai/agents/nutritionist/skill_extract_co
 import promptPlanner from './ai/agents/planner/skill_guided_compilation/prompt.txt?raw';
 import { tools as toolsPlanner } from './ai/agents/planner/skill_guided_compilation/tools';
 
+// @ts-ignore
+import promptAnalyst from './ai/agents/analyst/skill_athlete_briefing/prompt.txt?raw';
+import { tools as toolsAnalyst } from './ai/agents/analyst/skill_athlete_briefing/tools';
+
 // Note: In a production app, the API key should be stored in an environment variable
 // VITE_GEMINI_API_KEY. For now, we'll assume it's available.
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
@@ -278,41 +282,36 @@ export const geminiService = {
     }
   },
 
-  async generateAthleteBriefing(athleteProfile: any, dietPlan: any, workoutPlan: any, recentLogs: any) {
+  async generateAthleteBriefing(athleteProfile: any, dietPlan: any, workoutPlan: any, _recentLogs: any) {
     if (!API_KEY) return null;
-    const model = getModel();
-
-    const prompt = `
-      ### RUOLO
-      Sei un Performance Analyst per un team di atleti d'élite.
+    
+    const athleteId = athleteProfile.id;
+    const today = getTodayContext();
+    
+    const userMessage = `
+      Genera il briefing per l'atleta ${athleteProfile.first_name} ${athleteProfile.last_name} (ID: ${athleteId}).
+      Dieta Attuale (Target): ${JSON.stringify(dietPlan)}
+      Workout Attivo: ${workoutPlan?.name || 'Nessuno'}
+      ${today}
       
-      ### OBIETTIVO
-      Genera un Performance Briefing sintetico e di alto impatto visivo per il coach.
-      
-      ### DATI ATLETA
-      - **Profilo**: ${JSON.stringify(athleteProfile)}
-      - **Dieta Attuale**: ${JSON.stringify(dietPlan)}
-      - **Workout Attivo**: ${JSON.stringify(workoutPlan)}
-      - **Log Recenti (Aderenza)**: ${JSON.stringify(recentLogs)}
-      
-      ### STRUTTURA BRIEFING (Markdown)
-      1. **⚡ Stato di Forma**: Sintesi estrema dei progressi recenti.
-      2. **✅ Aderenza & Feedback**: Come sta rispondendo l'atleta ai carichi e alla dieta.
-      3. **💡 Suggerimenti Strategici**: 2-3 azioni concrete per il coach (es. "Aumenta i carbo pre-workout", "Scarico consigliato tra 1 settimana").
-      
-      ### REGOLE
-      - Sii diretto, professionale e "data-driven".
-      - Usa una tabella Markdown se utile per confrontare target vs reali.
-      - Max 150 parole.
-      - Lingua: Italiano.
+      Usa i tool per estrarre insight sui carichi degli ultimi allenamenti e sulla tendenza del peso prima di concludere.
     `;
 
     try {
-      const result = await model.generateContent(prompt);
-      return result.response.text();
+      const result = await this.runAgentSkill(
+        'analyst',
+        'athlete_briefing',
+        promptAnalyst,
+        userMessage,
+        toolsAnalyst
+      );
+      
+      // Since briefing is expected to be a text summary, let's ensure we return the text
+      // if it's already a markdown string (as structured by promptAnalyst)
+      return result?.text || result?.summary || (typeof result === 'string' ? result : JSON.stringify(result));
     } catch (error) {
-      console.error("Error generating athlete briefing:", error);
-      return "Impossibile generare il briefing in questo momento.";
+      console.error("Error generating athlete briefing with tools:", error);
+      return "Impossibile generare il briefing avanzato in questo momento.";
     }
   },
 
@@ -427,7 +426,7 @@ export const geminiService = {
           return {
             functionResponse: {
               name: call.name,
-              response: data
+              response: { result: data }
             }
           };
         }));
@@ -437,8 +436,13 @@ export const geminiService = {
       }
 
       const text = response.text();
-      const cleanJson = text.replace(/```json|```/g, "").trim();
-      return JSON.parse(cleanJson);
+      try {
+        const cleanJson = text.replace(/```json|```/g, "").trim();
+        return JSON.parse(cleanJson);
+      } catch (e) {
+        // Se non è JSON, ritorniamo il testo puro (alcuni agenti come l'analyst usano markdown)
+        return { text: text.trim() };
+      }
     } catch (error) {
       console.error(`Error in ${agentName}/${skillName}:`, error);
       return null;
@@ -499,27 +503,29 @@ export const geminiService = {
         { inlineData: { mimeType: "audio/webm", data: audioBase64 } }
       ]);
       return result.response.text().trim();
+
     } catch (e) {
       console.error("Transcription failed", e);
       return null;
     }
   },
 
-  async processWorkoutAudio(audioBase64: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string) {
+
+  async processWorkoutAudio(audioBase64: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string, planTitle?: string, planDescription?: string) {
     if (!API_KEY) return null;
     
     const transcription = await this.transcribeAudio(audioBase64);
 
     if (!transcription) return { error: "Audio vuoto o non comprensibile." };
 
-    return this.processWorkoutInstructions(transcription, existingMappings, currentPlan, preferences, coachId);
+    return this.processWorkoutInstructions(transcription, existingMappings, currentPlan, preferences, coachId, planTitle, planDescription);
   },
 
-  async processWorkoutChat(text: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string) {
-    return this.processWorkoutInstructions(text, existingMappings, currentPlan, preferences, coachId);
+  async processWorkoutChat(text: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string, planTitle?: string, planDescription?: string) {
+    return this.processWorkoutInstructions(text, existingMappings, currentPlan, preferences, coachId, planTitle, planDescription);
   },
 
-  async processWorkoutInstructions(instructions: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string) {
+  async processWorkoutInstructions(instructions: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string, planTitle?: string, planDescription?: string) {
     if (!API_KEY) return null;
     const model = getModel();
 
@@ -537,20 +543,15 @@ export const geminiService = {
         
         Rispondi con una lista separata da virgole (puoi usare il pipe | all'interno degli elementi per i sinonimi). 
         Se non trovi nulla, rispondi con "NULL".
-
-
       `;
       const extractionResult = await model.generateContent(extractionPrompt);
       const extractionText = extractionResult.response.text().trim();
       if (extractionText !== "NULL") {
         const rawNames = extractionText.split(',').map(s => s.trim()).filter(Boolean);
-        // Appiattiamo eventuali sinonimi separati da |
         extractedNames = rawNames.flatMap(n => n.includes('|') ? n.split('|').map(s => s.trim()) : [n]);
       }
-
     } catch (e) {
       console.error("Name extraction failed:", e);
-      // Fallback: use the whole instruction as a single name
       extractedNames = [instructions];
     }
 
@@ -562,28 +563,21 @@ export const geminiService = {
       const { exerciseService } = await import('./exerciseService');
       
       await Promise.all(extractedNames.map(async (name) => {
-        // Generate embedding for the specific name for better vector accuracy
         const nameEmbedding = await this.generateEmbedding(name);
         const results = await exerciseService.searchExercises(name, nameEmbedding, coachId, 0.25, 5);
         allSimilarExercises.push(...results);
       }));
 
       if (allSimilarExercises.length > 0) {
-        // LOGICA DI PRIORITIZZAZIONE E DEDUPLICAZIONE
         const filteredMap = new Map<string, any>();
-
         allSimilarExercises.forEach((ex: any) => {
           const baseId = ex.forked_from || ex.id;
           const existing = filteredMap.get(baseId);
-
-          // Se non c'è ancora o se questo è del coach e quello esistente no, sovrascrivi
-          // Oppure se questo ha una similarità molto più alta
           if (!existing || (ex.coach_id === coachId && existing.coach_id !== coachId) || (ex.similarity > existing.similarity + 0.1)) {
             filteredMap.set(baseId, ex);
           }
         });
 
-        // Deduplicazione per nome (opzionale ma utile)
         const finalMap = new Map<string, any>();
         Array.from(filteredMap.values()).forEach(ex => {
           const nameKey = (ex.name_it || ex.name).toLowerCase();
@@ -599,7 +593,6 @@ export const geminiService = {
         ).join('\n');
       }
     }
-
 
     const mappingContext = existingMappings.map(m => `- "${m.slang_name}" -> ${m.standard_exercise_id}`).join('\n');
     const preferencesContext = preferences.map(p => `- ${p.content}`).join('\n');
@@ -621,33 +614,37 @@ export const geminiService = {
       ### RUOLO
       Sei l'Assistente AI di un elite coach di fitness. Il tuo compito è tradurre le istruzioni del coach in una scheda di allenamento strutturata, mappando gli esercizi alla LIBRERIA ufficiale.
 
+      ### CONTESTO SCHEDA ATTUALE
+      - **Titolo**: ${planTitle || "Senza titolo"}
+      - **Descrizione**: ${planDescription || "Nessuna descrizione."}
+      - **Esercizi già presenti**:
+      ${planContext}
+
       ### ISTRUZIONI DEL COACH
       "${instructions}"
 
-      ### CONTESTO
+      ### RISORSE DI MAPPING
       1. **Libreria Rilevante (Ricerca Vettoriale)**:
       ${searchContext}
       
       2. **Mapping Personalizzati (Priorità Assoluta)**:
       ${mappingContext || 'Nessun mapping personalizzato trovato.'}
 
-      3. **Stato Attuale della Scheda**:
-      ${planContext}
-
-      4. **Preferenze Generali del Coach**:
+      3. **Preferenze Generali del Coach**:
       ${preferencesContext || 'Nessuna specifica.'}
       
-      ### REGOLE DI ELABORAZIONE
+      ### REGOLE DI ELABORAZIONE (CRITICAL)
       1. **Analisi Azione**:
          - 'append': Aggiungi nuovi esercizi in coda o in una posizione specifica.
          - 'modify': Cambia parametri (set, rep, rest) di esercizi GIÀ PRESENTI (usa l'ID esistente).
          - 'replace': Sostituisci un esercizio esistente con uno nuovo o cancella/correggi l'ultimo inserimento.
       
-      2. **Matching Esercizi**:
+      2. **Matching Esercizi (Strict Mapping)**:
+         - **DEVI SEMPRE CERCARE DI MAPPARE ALLA LIBRERIA**. Non lasciare exercise_library_id: null se esiste un esercizio correlato nei risultati di ricerca.
          - Se esiste un **Mapping Personalizzato**, USALO sempre se il nome coincide con lo slang del coach.
-         - Se trovi un esercizio con label [CUSTOM COACH], dal matching vettoriale, preferiscilo.
-         - Se la confidenza è < 85%, imposta 'needs_confirmation: true' e proponi fino a 3 alternative.
-         - Se l'esercizio non è in libreria, metti 'exercise_library_id: null' e scrivi il nome originale.
+         - **Priorità Common Exercises**: Tra più match simili, scegli l'esercizio più comune/standard (es. "Panca piana" vs varianti oscure).
+         - **Context Alignment**: Usa il Titolo e la Descrizione della scheda per risolvere ambiguità (es. se è "Leg Day", "Panca" è probabilmente "Panca iperextension" o simile, ma valuta bene).
+         - **Dubbi**: Se la confidenza è < 80% o l'esercizio è ambiguo, imposta 'needs_confirmation: true' e usa come 'name' il nome originale indicato dal coach, ma prova comunque a fornire l'ID del match più probabile in 'exercise_library_id'.
       
       3. **Parametri Tecnici**:
          - Se è a tempo (es. "Plank 60s"): 'is_time_based: true', 'target_reps: 60' (secondi).
@@ -655,20 +652,23 @@ export const geminiService = {
          - 'rest_esercizio': Recupero prima di passare al PROSSIMO esercizio.
          - Se non specificato, usa valori standard coerenti con il tipo di esercizio.
          - 'group_name': DEVE essere sempre presente (es. "A1", "B1", "Circuit" o nomi descrittivi). Usa nomi diversi per blocchi separati da "poi", "dopo" o "fine".
-         - **IMPORTANTE**: Assicurati di includere OGNI singolo esercizio menzionato nell'array 'exercises', senza eccezioni.
+         - **IMPORTANTE**: Assicurati di includere OGNI singolo esercizio menzionato nell'array 'exercises'.
 
       4. **Note del Coach**:
          - Inserisci in 'coach_notes' solo info NON catturate dai campi numerici (es. "RPE 8", "40kg", "Fermi 2 secondi in basso").
 
       ### OUTPUT FORMAT
-      Rispondi ESCLUSIVAMENTE con un JSON valido. Includi una chiave "thinking" per spiegare brevemente il tuo ragionamento prima della struttura dati.
+      Rispondi ESCLUSIVAMENTE con un JSON valido. Includi una chiave "thinking" ricca e dettagliata dove spieghi:
+      - Come hai interpretato le istruzioni.
+      - Perché hai scelto certi esercizi della libreria rispetto ad altri.
+      - Eventuali correzioni apportate rispetto allo stato attuale della scheda.
       {
-        "thinking": "Breve analisi delle istruzioni e delle scelte di mapping effettuate...",
+        "thinking": "...",
         "action_taken": "append" | "modify" | "replace",
         "exercises": [
           {
             "id": "uuid_esistente_se_modifica_altrimenti_null",
-            "name": "Nome Ufficiale Libreria",
+            "name": "Nome Ufficiale Libreria o Nome Originale se incerto",
             "spoken_name": "Nome usato dal coach",
             "exercise_library_id": "uuid_lib_o_null",
             "confidence_score": 0.95,
@@ -689,6 +689,9 @@ export const geminiService = {
     `;
 
     try {
+      // MULTI-PASS SIMULATION: We use a single prompt but with explicit instructions to "think" and "evaluate".
+      // Given the model constraints, a very structured single-pass prompt with a mandatory thinking field is often more robust
+      // than two separate calls with potential context loss.
       const result = await model.generateContent(prompt);
       const text = result.response.text();
       const start = text.indexOf('{');
@@ -908,6 +911,74 @@ export const geminiService = {
     } catch (error) {
       console.error("Error in chat focus objectives:", error);
       return null;
+    }
+  },
+
+  async processOnboardingMessage(params: {
+    message?: string;
+    audioBase64?: string;
+    currentProfile: any;
+    currentPreferences: any;
+    history: { role: 'user' | 'model'; parts: { text: string }[] }[];
+    mission: 'BIOMETRICS' | 'EXPERIENCE' | 'GOALS' | 'PHILOSOPHY';
+  }) {
+    if (!API_KEY) return null;
+    const model = getModel();
+
+    let userText = params.message || '';
+    if (params.audioBase64) {
+      const transcription = await this.transcribeAudio(params.audioBase64);
+      if (!transcription) return { error: "Non ho capito l'audio. Prova a ripetere o scrivere." };
+      userText = transcription;
+    }
+
+    const prompt = `
+      ### RUOLO
+      Sei l'Assistente AI Elitè di JB Fit. Il tuo compito è guidare il coach attraverso un onboarding conversazionale "Elite Performance".
+      
+      ### MISSIONE ATTUALE
+      ${params.mission}
+      
+      ### STATO ATTUALE (Quello che già sappiamo)
+      - Profilo: ${JSON.stringify(params.currentProfile)}
+      - Preferenze AI: ${JSON.stringify(params.currentPreferences)}
+      
+      ### CAMPI DA COMPLETARE PER QUESTA MISSIONE:
+      ${params.mission === 'BIOMETRICS' ? '- Data di nascita (birth_date), Genere (gender: M/F), Altezza (height), Peso (weight), Livello Attività (activity_level)' : ''}
+      ${params.mission === 'EXPERIENCE' ? '- Livello Esperienza (experience_level), Infortuni (injuries), Attrezzatura disponibile (equipment)' : ''}
+      ${params.mission === 'GOALS' ? '- Frequenza allenamento (training_frequency), Obiettivi focus (focus_objectives), Deficit calorico target (target_deficit)' : ''}
+      ${params.mission === 'PHILOSOPHY' ? '- Filosofia Allenamento (workout), Linee Guida Alimentazione (nutrition), Briefing Strategico (strategic)' : ''}
+      
+      ### REGOLE DI RISPOSTA
+      1. **Tono**: Professionale, incoraggiante, conciso. Parla come un assistente di alto livello.
+      2. **Estrazione**: Identifica OGNI dato fornito dall'utente nel messaggio e mappalo ai campi corretti.
+      3. **Conversazione**: Rispondi al messaggio dell'utente (es. "Perfetto, ho segnato l'altezza!") e chiedi SUBITO il prossimo dato mancante della missione.
+      4. **Completamento**: Se hai tutti i dati della missione corrente, informa l'utente e preparalo alla prossima fase (o concludi se è l'ultima).
+      5. **Lingua**: Italiano.
+      
+      ### FORMATO OUTPUT (JSON)
+      {
+        "reply": "Il tuo messaggio naturale qui...",
+        "extractedFields": { "field": value },
+        "extractedPreferences": { "category": "content" },
+        "isMissionComplete": true/false
+      }
+      
+      MESSAGGIO UTENTE: "${userText}"
+    `;
+
+    try {
+      const chat = model.startChat({ history: params.history });
+      const result = await chat.sendMessage(prompt);
+      const text = result.response.text();
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      const cleanJson = text.substring(start, end + 1).trim();
+      const parsed = JSON.parse(cleanJson);
+      return { ...parsed, userText };
+    } catch (error) {
+      console.error("Error in processOnboardingMessage:", error);
+      return { error: "Errore nel processamento del messaggio." };
     }
   },
 

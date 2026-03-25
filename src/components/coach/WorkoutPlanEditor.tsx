@@ -270,7 +270,7 @@ export default function WorkoutPlanEditor({
     setIsSelectModalOpen(false);
   };
 
-  const handleAIResult = (aiResult: { exercises: any[], transcription?: string, action_taken?: 'append' | 'modify' }) => {
+  const handleAIResult = (aiResult: { exercises: any[], thinking?: string, action_taken?: 'append' | 'modify' | 'replace' }) => {
     const aiExercises = aiResult.exercises;
     const isModify = aiResult.action_taken === 'modify';
     
@@ -968,6 +968,8 @@ export default function WorkoutPlanEditor({
           currentPlan={exercises}
           preferences={preferences || []}
           chatKey={storageKey}
+          planTitle={planName}
+          planDescription={description}
         />
       </motion.div>
 

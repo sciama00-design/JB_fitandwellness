@@ -22,6 +22,25 @@ export const sessionService = {
     return data as ExerciseLog;
   },
 
+  async upsertExerciseLog(log: Partial<ExerciseLog>) {
+    const { data, error } = await supabase
+      .from('exercise_logs')
+      .upsert([log], { onConflict: 'session_id, exercise_id, set_number' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data as ExerciseLog;
+  },
+
+  async upsertExerciseLogs(logs: Partial<ExerciseLog>[]) {
+    const { data, error } = await supabase
+      .from('exercise_logs')
+      .upsert(logs, { onConflict: 'session_id, exercise_id, set_number' })
+      .select();
+    if (error) throw error;
+    return data as ExerciseLog[];
+  },
+
   async completeSession(sessionId: string, durationSeconds: number, notes?: string) {
     const { data, error } = await supabase
       .from('workout_sessions')

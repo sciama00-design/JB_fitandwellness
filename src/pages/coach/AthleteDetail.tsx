@@ -36,10 +36,11 @@ import { appointmentService } from '../../services/appointmentService';
 import { dietService } from '../../services/dietService';
 import { athleteService } from '../../services/athleteService';
 import AthleteAnamnesisWorkflow from '../../components/coach/AthleteAnamnesisWorkflow';
+import AthleteAnalytics from '../../components/coach/AthleteAnalytics';
 import { AppTabs, AppTabContent } from '../../components/ui/Tabs';
 import clsx from 'clsx';
 
-export type TabType = 'anagrafica' | 'schede' | 'log' | 'tracker' | 'misure' | 'calendario' | 'alimentazione';
+export type TabType = 'anagrafica' | 'schede' | 'log' | 'tracker' | 'misure' | 'calendario' | 'alimentazione' | 'analytics';
 
 export const ATHLETE_TABS: { id: TabType; label: string; icon: any }[] = [
   { id: 'anagrafica', label: 'Info', icon: User },
@@ -48,6 +49,7 @@ export const ATHLETE_TABS: { id: TabType; label: string; icon: any }[] = [
   { id: 'tracker', label: 'Check-in', icon: Clock },
   { id: 'alimentazione', label: 'Dieta', icon: Apple },
   { id: 'misure', label: 'Metriche', icon: Scale },
+  { id: 'analytics', label: 'Analytics', icon: ExternalLink },
   { id: 'calendario', label: 'Calendar', icon: CalendarIcon },
 ];
 
@@ -520,6 +522,17 @@ export default function AthleteDetail() {
                 <p className="text-muted-foreground/40 font-semibold text-sm">Nessuna misurazione trovata</p>
               </div>
             )}
+          </div>
+        </AppTabContent>
+
+        {/* Analytics Tab */}
+        <AppTabContent value="analytics">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-foreground tracking-tight">Advanced Analytics</h2>
+              <p className="text-muted-foreground/40 mt-1 text-sm font-medium">Analisi approfondita delle performance e dei trend biometrici</p>
+            </div>
+            <AthleteAnalytics athleteId={id!} />
           </div>
         </AppTabContent>
 

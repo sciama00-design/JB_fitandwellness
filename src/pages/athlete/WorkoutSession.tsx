@@ -198,8 +198,7 @@ export default function WorkoutSession() {
         const iterations = ex.group_iterations;
         for (let r = 1; r <= iterations; r++) {
           groupExs.forEach(ge => {
-            const totalSets = ge.target_sets || 1;
-            const setsPerRound = Math.ceil(totalSets / iterations);
+            const setsPerRound = ge.target_sets || 1;
             const startSet = (r - 1) * setsPerRound;
             
             unrolled.push({ 
@@ -238,21 +237,75 @@ export default function WorkoutSession() {
     }
   });
 
+  // Individual Log Mutation
+  const logMutation = useMutation({
+    mutationFn: async (data: { exerciseIndex: number; setIndex: number; log: any }) => {
+      if (!sessionId) return;
+      const ex = sessionExercises[data.exerciseIndex];
+      if (!ex) return;
+      
+      const globalSetIdx = (ex.startSetIdx || 0) + data.setIndex;
+      
+      const payload: any = {
+        session_id: sessionId,
+        exercise_id: ex.id,
+        set_number: globalSetIdx + 1,
+        reps: parseInt(data.log.reps) || 0,
+        weight: parseFloat(data.log.weight) || 0,
+        rpe: parseInt(data.log.rpe) || 0,
+        athlete_feedback: data.log.notes
+      };
+
+      // Only add is_time_based if the column exists (safeguard)
+      if (ex.is_time_based !== undefined) {
+        payload.is_time_based = ex.is_time_based;
+      }
+
+      try {
+        await sessionService.upsertExerciseLog(payload);
+      } catch (e) {
+        console.warn("Failed to upsert log, trying without is_time_based...", e);
+        const { is_time_based, ...safePayload } = payload;
+        await sessionService.upsertExerciseLog(safePayload);
+      }
+    }
+  });
+
   // End session mutation
   const endMutation = useMutation({
     mutationFn: async () => {
-      const logPromises = Object.entries(logs).flatMap(([exId, sets]) => 
-        sets.map((set, idx) => sessionService.logExercise({
-          session_id: sessionId!,
-          exercise_id: exId,
-          set_number: idx + 1,
-          reps: parseInt(set.reps),
-          weight: parseFloat(set.weight),
-          rpe: parseInt(set.rpe),
-          athlete_feedback: set.notes
-        }))
-      );
-      await Promise.all(logPromises);
+      // Final sync of all logs to be absolutely sure
+      const allLogs: any[] = [];
+      Object.entries(logs).forEach(([exId, sets]) => {
+        const ex = sessionExercises.find(e => e.id === exId);
+        sets.forEach((set, idx) => {
+          if (set && (set.reps || set.weight)) {
+            const globalSetIdx = (ex?.startSetIdx || 0) + idx;
+            allLogs.push({
+              session_id: sessionId!,
+              exercise_id: exId,
+              set_number: globalSetIdx + 1,
+              reps: parseInt(set.reps) || 0,
+              weight: parseFloat(set.weight) || 0,
+              rpe: parseInt(set.rpe) || 0,
+              athlete_feedback: set.notes,
+              is_time_based: ex?.is_time_based ?? false
+            });
+          }
+        });
+      });
+
+      if (allLogs.length > 0) {
+        // Remove is_time_based if it causes 400 for any reason (safeguard)
+        const sanitizedLogs = allLogs.map(({ is_time_based, ...rest }) => rest);
+        try {
+          await sessionService.upsertExerciseLogs(allLogs);
+        } catch (e) {
+          console.warn("Failed to upsert with is_time_based, trying without...", e);
+          await sessionService.upsertExerciseLogs(sanitizedLogs);
+        }
+      }
+      
       await sessionService.completeSession(sessionId!, duration);
     },
     onSuccess: () => {
@@ -284,6 +337,17 @@ export default function WorkoutSession() {
 
   const handleConfirmSet = () => {
     if (!currentExercise) return;
+    
+    // Progressive sync to DB
+    const globalSetIdx = (currentExercise.startSetIdx || 0) + currentSetIndex;
+    const setLog = logs[currentExercise.id]?.[globalSetIdx];
+    if (setLog) {
+      logMutation.mutate({ 
+        exerciseIndex: currentExerciseIndex, 
+        setIndex: currentSetIndex, 
+        log: setLog 
+      });
+    }
     
     const setsToComplete = currentExercise.setsInRound || currentExercise.target_sets || 1;
     const isLastSet = currentSetIndex === (setsToComplete - 1);
@@ -319,18 +383,32 @@ export default function WorkoutSession() {
 
   const completeExerciseAndMove = () => {
     const exerciseId = currentExercise?.id;
+    let finalLogForSync = null;
+
     if (exerciseId && exerciseFeedback) {
       const updatedExLogs = [...(logs[exerciseId] || [])];
-      const lastSetIdx = updatedExLogs.length - 1;
-      if (lastSetIdx >= 0) {
+      const setsToComplete = currentExercise.setsInRound || currentExercise.target_sets || 1;
+      const lastSetIdx = (currentExercise.startSetIdx || 0) + setsToComplete - 1;
+      
+      if (updatedExLogs[lastSetIdx]) {
         updatedExLogs[lastSetIdx] = { 
           ...updatedExLogs[lastSetIdx], 
           notes: [updatedExLogs[lastSetIdx].notes, exerciseFeedback].filter(Boolean).join(' | ')
         };
         setLogs({ ...logs, [exerciseId]: updatedExLogs });
+        finalLogForSync = updatedExLogs[lastSetIdx];
       }
     }
     
+    // Sync final feedback if any
+    if (exerciseId && finalLogForSync) {
+      logMutation.mutate({ 
+        exerciseIndex: currentExerciseIndex, 
+        setIndex: (currentExercise.setsInRound || currentExercise.target_sets || 1) - 1, 
+        log: finalLogForSync 
+      });
+    }
+
     setShowExerciseFeedback(false);
     setExerciseFeedback('');
     setCurrentSetIndex(0);
@@ -530,7 +608,7 @@ export default function WorkoutSession() {
             const isCompleted = idx < currentExerciseIndex;
             return (
               <motion.div 
-                key={idx} 
+                key={`progress-${idx}`} 
                 initial={false}
                 animate={{
                   backgroundColor: isCurrent ? "var(--primary)" : isCompleted ? "rgba(var(--primary), 0.3)" : "rgba(255,255,255,0.05)",
@@ -780,11 +858,15 @@ export default function WorkoutSession() {
 
                     <button
                       onClick={handleConfirmSet}
-                      disabled={!setLog.reps || (!currentExercise.is_time_based && !setLog.weight)}
+                      disabled={!setLog.reps || (!currentExercise.is_time_based && !setLog.weight) || logMutation.isPending}
                       className="btn btn-primary w-full h-14 sm:h-24 rounded-2xl sm:rounded-[2.5rem] font-black italic tracking-[0.1em] sm:tracking-[0.2em] uppercase shadow-2xl shadow-primary/30 transform active:scale-95 transition-all text-base sm:text-2xl disabled:opacity-30 disabled:grayscale disabled:scale-100 flex items-center justify-center gap-3 border-2 border-primary/20"
                     >
-                      <CheckCircle2 className="w-5 h-5 sm:w-10 h-10" />
-                      Conferma Serie {idx + 1}
+                      {logMutation.isPending ? (
+                        <Loader2 className="w-5 h-5 sm:w-10 h-10 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-5 h-5 sm:w-10 h-10" />
+                      )}
+                      {logMutation.isPending ? 'Salvataggio...' : `Conferma Serie ${idx + 1}`}
                     </button>
                   </div>
                 );
@@ -1018,7 +1100,7 @@ export default function WorkoutSession() {
                   
                   return (
                     <button
-                      key={ex.id}
+                      key={`${ex.id}-${idx}`}
                       onClick={() => {
                         setCurrentExerciseIndex(idx);
                         setShowFullList(false);
