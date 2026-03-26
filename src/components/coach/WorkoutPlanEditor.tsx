@@ -270,7 +270,21 @@ export default function WorkoutPlanEditor({
     setIsSelectModalOpen(false);
   };
 
-  const handleAIResult = (aiResult: { exercises: any[], thinking?: string, action_taken?: 'append' | 'modify' | 'replace' }) => {
+  const handleAIResult = (aiResult: { 
+    exercises: any[], 
+    thinking?: string, 
+    action_taken?: 'append' | 'modify' | 'replace',
+    plan_title?: string | null,
+    plan_description?: string | null
+  }) => {
+    // 0. Auto-update Header if empty or provided
+    if (aiResult.plan_title && (!planName || planName.toLowerCase().includes('senza titolo'))) {
+      setPlanName(aiResult.plan_title);
+    }
+    if (aiResult.plan_description && (!description || description.length < 5)) {
+      setDescription(aiResult.plan_description);
+    }
+
     const aiExercises = aiResult.exercises;
     const isModify = aiResult.action_taken === 'modify';
     
@@ -285,46 +299,48 @@ export default function WorkoutPlanEditor({
       let groupName = aiEx.group_name || null;
 
       if (groupName) {
-        // 1. Check if we already created this group in THIS loop
         if (localGroupMap.has(groupName)) {
             groupId = localGroupMap.get(groupName)!;
         } else {
-            // 2. Check if the group already exists in the editor
             const existingInEditor = exercises.find(ex => ex.group_name === groupName);
             if (existingInEditor) {
                 groupId = existingInEditor.group_id;
                 localGroupMap.set(groupName, groupId!);
             } else {
-                // 3. Create new group
                 groupId = aiEx.group_id || crypto.randomUUID();
                 localGroupMap.set(groupName, groupId);
             }
         }
       }
 
-      // Parse reps (can be "10" or "10,9,8")
-      const repsStr = String(aiEx.target_reps || "10");
-      const repsArray = repsStr.includes(',') 
-        ? repsStr.split(',').map(r => parseInt(r.trim()) || 10)
-        : Array(aiEx.target_sets || 3).fill(parseInt(repsStr) || 10);
+      // Reps logic: Priority to target_reps_detail from AI
+      let repsArray: number[] = [];
+      if (aiEx.target_reps_detail && Array.isArray(aiEx.target_reps_detail)) {
+        repsArray = aiEx.target_reps_detail.map((r: any) => parseInt(r) || 10);
+      } else {
+        const repsStr = String(aiEx.target_reps || "10");
+        repsArray = repsStr.includes(',') 
+          ? repsStr.split(',').map(r => parseInt(r.trim()) || 10)
+          : Array(aiEx.target_sets || 3).fill(parseInt(repsStr) || 10);
+      }
       
-      const finalSets = repsStr.includes(',') ? repsArray.length : (aiEx.target_sets || 3);
+      const finalSets = repsArray.length || (aiEx.target_sets || 3);
 
       newItems.push({
         exercise_library_id: aiEx.exercise_library_id || null,
         name: aiEx.name,
         spoken_name: aiEx.spoken_name,
         target_sets: finalSets,
-        target_reps: repsArray[0],
+        target_reps: repsArray[0] || 10,
         rest_seconds: aiEx.rest_seconds || 60,
-        rest_esercizio: 0,
+        rest_esercizio: aiEx.rest_esercizio || 0,
         order_index: isModify ? idx : (exercises.length + idx),
         video_urls: libEx?.video_urls || [],
         image_url: libEx?.images?.[0] || null,
         group_id: groupId || activeGroupId,
         group_name: groupName || activeGroupName,
         group_iterations: aiEx.group_iterations || 1,
-        superset_id: aiEx.is_superset ? crypto.randomUUID() : null,
+        superset_id: aiEx.is_superset ? (exercises[exercises.length - 1]?.superset_id || crypto.randomUUID()) : null,
         target_reps_detail: repsArray,
         coach_notes: aiEx.coach_notes || null,
         is_time_based: aiEx.is_time_based || false,
@@ -875,7 +891,7 @@ export default function WorkoutPlanEditor({
                                   onUpdate={(updates) => handleManualExerciseUpdate(originalIndex, updates)}
                                   onToggleSuperset={() => toggleSuperset(originalIndex)}
                                   onGroupAssign={(name) => assignGroup(originalIndex, name)}
-                                  onShowInfo={() => handleShowInfo(ex.exercise_library_id || null)}
+                                  onShowInfo={(id) => handleShowInfo(id || ex.exercise_library_id || null)}
                                   onOpenMediaViewer={() => setActiveMediaViewerIndex(originalIndex)}
                                   onNameClick={() => {
                                     setEditingExerciseIndex(originalIndex);
@@ -989,7 +1005,7 @@ interface ExerciseItemProps {
   onUpdate: (updates: Partial<PlanExercise>) => void;
   onToggleSuperset: () => void;
   onGroupAssign: (name: string | null) => void;
-  onShowInfo: () => void;
+  onShowInfo: (id?: string | null) => void;
   onOpenMediaViewer: () => void;
   onNameClick: () => void;
   isSuperset: boolean;
@@ -1078,7 +1094,7 @@ function ExerciseItem({
                 </h4>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2 sm:mt-1">
                   <button 
-                    onClick={onShowInfo}
+                    onClick={() => onShowInfo()}
                     className="text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary/80 flex items-center gap-1 transition-all px-2 py-1 rounded-md hover:bg-white/[0.06]/50"
                   >
                     <Info className="w-3 h-3" /> Info
@@ -1128,22 +1144,32 @@ function ExerciseItem({
                       </button>
                       <div className="absolute top-full left-0 mt-1 w-48 bg-slate-900 border border-white/[0.06] rounded-xl shadow-2xl scale-0 group-hover/alt:scale-100 transition-all origin-top-left z-50 overflow-hidden">
                         {ex.alternatives.map((alt: any) => (
-                          <button
-                            key={alt.id}
-                            onClick={() => {
-                              const libEx = allLibraryExercises?.find(e => e.id === alt.id);
-                              onUpdate({ 
-                                exercise_library_id: alt.id, 
-                                name: alt.name,
-                                needs_confirmation: false,
-                                video_urls: libEx?.video_urls || [],
-                                image_url: libEx?.images?.[0] || null,
-                              });
-                            }}
-                            className="w-full text-left px-3 py-2 text-[10px] font-bold text-foreground/70 hover:bg-white/5 hover:text-white transition-colors border-b border-white/[0.06]/50 last:border-0"
-                          >
-                            {alt.name}
-                          </button>
+                          <div key={alt.id} className="flex items-center justify-between hover:bg-white/5 transition-colors border-b border-white/[0.06]/50 last:border-0">
+                            <button
+                              onClick={() => {
+                                const libEx = allLibraryExercises?.find(e => e.id === alt.id);
+                                onUpdate({ 
+                                  exercise_library_id: alt.id, 
+                                  name: alt.name,
+                                  needs_confirmation: false,
+                                  video_urls: libEx?.video_urls || [],
+                                  image_url: libEx?.images?.[0] || null,
+                                });
+                              }}
+                              className="flex-1 text-left px-3 py-2 text-[10px] font-bold text-foreground/70 hover:text-white transition-colors"
+                            >
+                              {alt.name}
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onShowInfo(alt.id);
+                              }}
+                              className="p-2 text-muted-foreground/30 hover:text-primary transition-all"
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     </div>

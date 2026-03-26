@@ -614,9 +614,9 @@ export const geminiService = {
       ### RUOLO
       Sei l'Assistente AI di un elite coach di fitness. Il tuo compito è tradurre le istruzioni del coach in una scheda di allenamento strutturata, mappando gli esercizi alla LIBRERIA ufficiale.
 
-      ### CONTESTO SCHEDA ATTUALE
-      - **Titolo**: ${planTitle || "Senza titolo"}
-      - **Descrizione**: ${planDescription || "Nessuna descrizione."}
+      ### STATO SCHEDA ATTUALE
+      - **Titolo Attuale**: ${planTitle || "Senza titolo"}
+      - **Descrizione Attuale**: ${planDescription || "Nessuna descrizione."}
       - **Esercizi già presenti**:
       ${planContext}
 
@@ -634,40 +634,41 @@ export const geminiService = {
       ${preferencesContext || 'Nessuna specifica.'}
       
       ### REGOLE DI ELABORAZIONE (CRITICAL)
-      1. **Analisi Azione**:
+      1. **Intestazione Scheda**:
+         - Se il 'Titolo Attuale' è vuoto o generico (es. "Senza titolo"), ESTRAI o GENERA un titolo accattivante e tecnico basato sul contenuto (es. "Massive Chest & Shoulders").
+         - Se le istruzioni contengono una descrizione o un obiettivo generale, aggiungilo/aggiornalo in 'plan_description'.
+
+      2. **Analisi Azione**:
          - 'append': Aggiungi nuovi esercizi in coda o in una posizione specifica.
          - 'modify': Cambia parametri (set, rep, rest) di esercizi GIÀ PRESENTI (usa l'ID esistente).
          - 'replace': Sostituisci un esercizio esistente con uno nuovo o cancella/correggi l'ultimo inserimento.
       
-      2. **Matching Esercizi (Strict Mapping)**:
-         - **DEVI SEMPRE CERCARE DI MAPPARE ALLA LIBRERIA**. Non lasciare exercise_library_id: null se esiste un esercizio correlato nei risultati di ricerca.
+      3. **Matching Esercizi (Strict Mapping)**:
+         - **DEVI SEMPRE CERCARE DI MAPPARE ALLA LIBRERIA**.
+         - **Priorità Base Exercises**: Tra più match simili, scegli l'esercizio più standard e comune. Esempio: se il coach dice "Lat Machine", scegli quella a "presa larga" o standard, non varianti esotiche, a meno che non sia specificato.
          - Se esiste un **Mapping Personalizzato**, USALO sempre se il nome coincide con lo slang del coach.
-         - **Priorità Common Exercises**: Tra più match simili, scegli l'esercizio più comune/standard (es. "Panca piana" vs varianti oscure).
-         - **Context Alignment**: Usa il Titolo e la Descrizione della scheda per risolvere ambiguità (es. se è "Leg Day", "Panca" è probabilmente "Panca iperextension" o simile, ma valuta bene).
-         - **Dubbi**: Se la confidenza è < 80% o l'esercizio è ambiguo, imposta 'needs_confirmation: true' e usa come 'name' il nome originale indicato dal coach, ma prova comunque a fornire l'ID del match più probabile in 'exercise_library_id'.
+         - **Dubbi**: Se la confidenza è < 85% o l'esercizio è ambiguo, imposta 'needs_confirmation: true' e fornisci 2-3 'alternatives' (ID e Nome) dalla 'Libreria Rilevante'.
       
-      3. **Parametri Tecnici**:
+      4. **Parametri Tecnici & Repetizioni**:
+         - **Serie e Ripetizioni**: Se il coach indica ripetizioni diverse per ogni serie (es. "prima serie 10, seconda 12..."), popola l'array 'target_reps_detail' in modo corrispondente (es. [10, 12, ...]).
+         - Se viene data una sola indicazione (es. 3x10), popola 'target_reps_detail' con lo stesso valore ripetuto per 'target_sets'.
          - Se è a tempo (es. "Plank 60s"): 'is_time_based: true', 'target_reps: 60' (secondi).
-         - 'rest_seconds': Recupero tra le serie.
-         - 'rest_esercizio': Recupero prima di passare al PROSSIMO esercizio.
-         - Se non specificato, usa valori standard coerenti con il tipo di esercizio.
-         - 'group_name': DEVE essere sempre presente (es. "A1", "B1", "Circuit" o nomi descrittivi). Usa nomi diversi per blocchi separati da "poi", "dopo" o "fine".
-         - **IMPORTANTE**: Assicurati di includere OGNI singolo esercizio menzionato nell'array 'exercises'.
+         - 'rest_seconds': Recupero tra le serie. 'rest_esercizio': Recupero post esercizio.
+         - 'group_name': Sempre presente. **IMPORTANTE**: Usa lo stesso nome di gruppo per tutti gli esercizi di una sequenza (es. "Allenamento", "Parte A"), a meno che il coach non indichi esplicitamente una divisione (es. "passiamo alla parte B", "poi in circuito", "dopo fai..."). **NON** creare gruppi diversi per ogni singolo esercizio (evita "Esercizio 1", "Esercizio 2").
 
-      4. **Note del Coach**:
-         - Inserisci in 'coach_notes' solo info NON catturate dai campi numerici (es. "RPE 8", "40kg", "Fermi 2 secondi in basso").
+      5. **Note del Coach**:
+         - Inserisci in 'coach_notes' info come RPE, carichi suggeriti, fermi isometrici, ecc. Se il coach ha dettato ripetizioni complesse, scrivile anche qui in formato testuale leggibile.
 
       ### OUTPUT FORMAT
-      Rispondi ESCLUSIVAMENTE con un JSON valido. Includi una chiave "thinking" ricca e dettagliata dove spieghi:
-      - Come hai interpretato le istruzioni.
-      - Perché hai scelto certi esercizi della libreria rispetto ad altri.
-      - Eventuali correzioni apportate rispetto allo stato attuale della scheda.
+      Rispondi ESCLUSIVAMENTE con un JSON valido.
       {
-        "thinking": "...",
+        "thinking": "Dettagliata spiegazione della strategia di mapping e interpretazione...",
+        "plan_title": "Nuovo titolo se applicabile, altrimenti null",
+        "plan_description": "Nuova descrizione se applicabile, altrimenti null",
         "action_taken": "append" | "modify" | "replace",
         "exercises": [
           {
-            "id": "uuid_esistente_se_modifica_altrimenti_null",
+            "id": "uuid_se_modifica_altrimenti_null",
             "name": "Nome Ufficiale Libreria o Nome Originale se incerto",
             "spoken_name": "Nome usato dal coach",
             "exercise_library_id": "uuid_lib_o_null",
@@ -676,6 +677,7 @@ export const geminiService = {
             "alternatives": [{"id": "uuid", "name": "Nome"}],
             "target_sets": 3,
             "target_reps": 10,
+            "target_reps_detail": [10, 10, 10],
             "is_time_based": false,
             "rest_seconds": 60,
             "rest_esercizio": 0,
@@ -689,9 +691,6 @@ export const geminiService = {
     `;
 
     try {
-      // MULTI-PASS SIMULATION: We use a single prompt but with explicit instructions to "think" and "evaluate".
-      // Given the model constraints, a very structured single-pass prompt with a mandatory thinking field is often more robust
-      // than two separate calls with potential context loss.
       const result = await model.generateContent(prompt);
       const text = result.response.text();
       const start = text.indexOf('{');

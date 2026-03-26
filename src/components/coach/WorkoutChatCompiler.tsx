@@ -76,7 +76,15 @@ export default function WorkoutChatCompiler({
   const handleAIResponse = (result: any) => {
     if (result && result.exercises) {
       onResult(result);
-      addMessage('assistant', `Ho aggiornato la scheda: ${result.action_taken === 'append' ? 'aggiunti nuovi esercizi' : 'modificati esercizi esistenti'}.`, result.thinking);
+      
+      let feedback = "Ho aggiornato la scheda: ";
+      if (result.action_taken === 'append') feedback += "aggiunti nuovi esercizi.";
+      else if (result.action_taken === 'modify') feedback += "modificati esercizi esistenti.";
+      else if (result.action_taken === 'replace') feedback += "sostituito l'ultimo elemento.";
+      
+      if (result.plan_title) feedback += `\nHo anche rinominato la scheda in "${result.plan_title}".`;
+
+      addMessage('assistant', feedback, result.thinking);
       setInput('');
       if (inputKey) localStorage.removeItem(inputKey);
     } else {
