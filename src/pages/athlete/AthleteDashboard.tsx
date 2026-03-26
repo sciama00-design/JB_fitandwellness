@@ -5,13 +5,13 @@ import { planService } from '../../services/planService';
 import { sessionService } from '../../services/sessionService';
 import { dailyLogService } from '../../services/dailyLogService';
 import { useAuth } from '../../lib/auth';
-import { 
-  Play, 
-  ChevronRight, 
-  Loader2, 
-  Dumbbell, 
-  History, 
-  Trophy, 
+import {
+  Play,
+  ChevronRight,
+  Loader2,
+  Dumbbell,
+  History,
+  Trophy,
   TrendingUp,
   Calendar as CalendarIcon,
   Flame,
@@ -31,6 +31,16 @@ import clsx from 'clsx';
 
 type TabType = 'home' | 'train';
 
+const containerVariants = {
+  hidden:  { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.08 } }
+};
+
+const itemVariants = {
+  hidden:  { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.38, ease: [0.4, 0, 0.2, 1] as any } }
+};
+
 export default function AthleteDashboard() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -42,9 +52,7 @@ export default function AthleteDashboard() {
 
   const deleteSessionMutation = useMutation({
     mutationFn: (sessionId: string) => sessionService.cancelSession(sessionId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['athlete-history'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['athlete-history'] }),
   });
 
   const handleDeleteSession = (e: React.MouseEvent | null, sessionId: string) => {
@@ -74,21 +82,22 @@ export default function AthleteDashboard() {
 
   if (isLoadingPlans || isLoadingHistory) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse font-medium">Carico la tua palestra...</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
+          Carico la tua palestra...
+        </p>
       </div>
     );
   }
 
   const lastSession = history?.[0];
   const totalWorkouts = history?.length || 0;
-  
+
   const totalVolume = history?.reduce((acc, session) => {
-    const sessionVolume = (session as any).exercise_logs?.reduce((sAcc: number, log: any) => {
-      return sAcc + (log.reps * (log.weight || 0));
-    }, 0) || 0;
-    return acc + sessionVolume;
+    const v = (session as any).exercise_logs?.reduce((sAcc: number, log: any) =>
+      sAcc + (log.reps * (log.weight || 0)), 0) || 0;
+    return acc + v;
   }, 0) || 0;
 
   const volumeInTons = (totalVolume / 1000).toFixed(1);
@@ -100,274 +109,287 @@ export default function AthleteDashboard() {
     return date > weekAgo;
   }).length || 0;
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
-  };
-
   return (
-    <div className="space-y-10">
-      {/* Header & Welcome */}
-      <motion.header 
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
+    <div className="space-y-8">
+
+      {/* ── Header ── */}
+      <motion.header
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
         className="px-1"
       >
-        <h1 className="text-5xl font-black tracking-tighter bg-gradient-to-r from-white via-primary to-accent bg-clip-text text-transparent italic leading-[0.8]">
-          Ciao, {user?.email?.split('@')[0]}
+        <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-foreground leading-none">
+          Ciao, <span className="text-primary">{user?.email?.split('@')[0]}</span>
         </h1>
-        <p className="text-muted-foreground mt-4 font-black tracking-[0.3em] uppercase text-[10px] opacity-50">Elite Training Protocol Active</p>
+        <p className="text-muted-foreground/50 mt-2 font-bold tracking-[0.25em] uppercase text-[10px]">
+          Elite Training Protocol Active
+        </p>
       </motion.header>
 
-      {/* Main Content Area */}
+      {/* ── Tab Content ── */}
       <AnimatePresence mode="wait">
-        
-        {/* --- HOME TAB --- */}
+
+        {/* HOME TAB */}
         {activeTab === 'home' && (
-          <motion.div 
+          <motion.div
             key="home"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            exit="hidden"
-            className="space-y-10"
+            exit={{ opacity: 0, y: -8 }}
+            className="space-y-8"
           >
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: 'Attività', val: activeDaysLastWeek, unit: '/7gg', icon: Flame, color: 'text-orange-500' },
-                { label: 'Totali', val: totalWorkouts, unit: 'sessioni', icon: Trophy, color: 'text-amber-500' },
-                { label: 'Volume', val: volumeInTons, unit: 'ton', icon: TrendingUp, color: 'text-emerald-500' },
-                { label: 'Prossimo', val: 'Domani', unit: '', icon: CalendarIcon, color: 'text-primary' },
+                { label: 'Attività',  val: activeDaysLastWeek, unit: '/7gg',     icon: Flame,        iconClass: 'text-accent' },
+                { label: 'Totali',    val: totalWorkouts,       unit: 'sessioni', icon: Trophy,       iconClass: 'text-amber-500' },
+                { label: 'Volume',    val: volumeInTons,        unit: 'ton',      icon: TrendingUp,   iconClass: 'text-emerald-500' },
+                { label: 'Prossimo', val: 'Domani',            unit: '',         icon: CalendarIcon, iconClass: 'text-primary' },
               ].map((stat, i) => (
-                <motion.div 
+                <motion.div
                   key={i}
                   variants={itemVariants}
-                  className="glass-card p-4 sm:p-5 rounded-2xl sm:rounded-3xl relative overflow-hidden group min-h-[140px] flex flex-col justify-between"
+                  className="surface relative overflow-hidden group min-h-[130px] flex flex-col justify-between"
                 >
-                  <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-30 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500">
-                    <stat.icon className={clsx("w-12 h-12 sm:w-20 sm:h-20", stat.color)} />
+                  {/* Large icon watermark */}
+                  <div className="absolute top-2 right-2 opacity-8 group-hover:opacity-15 transition-opacity duration-300 pointer-events-none">
+                    <stat.icon className={clsx('w-14 h-14', stat.iconClass)} />
                   </div>
-                  <p className="text-muted-foreground text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] opacity-50 group-hover:opacity-100 transition-opacity">{stat.label}</p>
-                  <div className="flex items-baseline gap-1 sm:gap-2 relative z-10 mt-auto">
-                    <span className={clsx("text-2xl sm:text-4xl font-black italic tracking-tighter", stat.color)}>{stat.val}</span>
-                    <span className="text-muted-foreground text-[8px] sm:text-[10px] font-bold uppercase tracking-widest">{stat.unit}</span>
+
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
+                    {stat.label}
+                  </p>
+                  <div className="flex items-baseline gap-1 relative z-10">
+                    <span className={clsx('text-3xl sm:text-4xl font-black tracking-tight', stat.iconClass)}>
+                      {stat.val}
+                    </span>
+                    {stat.unit && (
+                      <span className="text-muted-foreground/50 text-[10px] font-bold uppercase tracking-wider">
+                        {stat.unit}
+                      </span>
+                    )}
                   </div>
                 </motion.div>
               ))}
             </div>
 
-            {/* Daily Check-in Grid */}
-            <div className="grid grid-cols-1 gap-6">
-              {/* Daily Check-in Card - Full Width now */}
-              <motion.div variants={itemVariants} className="group">
-                <div className="card h-full flex flex-col justify-between gap-8 relative overflow-hidden">
-                   <div className="flex items-center gap-5">
-                      <div className={clsx(
-                        "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-500",
-                        todayLog 
-                          ? 'bg-primary/20 text-primary border border-primary/30' 
-                          : 'bg-gradient-to-br from-primary to-emerald-400 text-primary-foreground shadow-xl shadow-primary/20 scale-110'
-                      )}>
-                        <CheckCircle2 className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-black text-foreground italic">{todayLog ? 'Check-in Completato' : 'Check-in Giornaliero'}</h3>
-                        <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mt-1">
-                          {todayLog ? `Peso attuale: ${todayLog.weight_kg}kg` : 'Registra i tuoi progressi'}
-                        </p>
-                      </div>
-                   </div>
-                   <button
-                     onClick={() => setIsCheckInOpen(true)}
-                     className={clsx(
-                       "btn w-full h-14 rounded-2xl font-black text-sm tracking-widest uppercase transition-all",
-                       todayLog 
-                         ? 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary border border-border' 
-                         : 'btn-primary shadow-2xl shadow-primary/30'
-                     )}
-                   >
-                     {todayLog ? 'Aggiorna Dati' : 'Registra Ora'}
-                   </button>
-                   
-                   {/* Background Decoration */}
-                   <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-primary/5 blur-3xl rounded-full"></div>
+            {/* Daily Check-In */}
+            <motion.div variants={itemVariants}>
+              <div className={clsx(
+                'surface flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6',
+                !todayLog && 'border-primary/25 bg-primary/4'
+              )}>
+                <div className="flex items-center gap-4">
+                  <div className={clsx(
+                    'w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300',
+                    todayLog
+                      ? 'bg-primary/15 text-primary border border-primary/25'
+                      : 'bg-primary text-primary-foreground shadow-lg shadow-primary/25'
+                  )}>
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-foreground">
+                      {todayLog ? 'Check-in Completato' : 'Check-in Giornaliero'}
+                    </h3>
+                    <p className="text-muted-foreground/60 text-[11px] font-semibold uppercase tracking-wider mt-0.5">
+                      {todayLog ? `Peso attuale: ${todayLog.weight_kg}kg` : 'Registra i tuoi progressi'}
+                    </p>
+                  </div>
                 </div>
-              </motion.div>
-            </div>
 
-            {/* Resume / Suggestion Card */}
+                <button
+                  onClick={() => setIsCheckInOpen(true)}
+                  className={clsx(
+                    'btn w-full sm:w-auto px-6',
+                    todayLog ? 'btn-secondary' : 'btn-primary'
+                  )}
+                >
+                  {todayLog ? 'Aggiorna Dati' : 'Registra Ora'}
+                </button>
+              </div>
+            </motion.div>
+
+            {/* Next Mission card */}
             <motion.div variants={itemVariants}>
               {lastSession ? (
-                <div className="relative group">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-primary via-blue-500 to-accent rounded-[3rem] opacity-20 blur-2xl group-hover:opacity-40 transition duration-1000"></div>
-                  <div className="relative card p-8 sm:p-14 flex flex-col md:flex-row items-center justify-between gap-8 sm:gap-12 overflow-hidden">
-                    <div className="space-y-4 sm:y-6 text-center md:text-left relative z-10">
-                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.3em] mb-2 border border-primary/20 backdrop-blur-md">
-                        Next Mission
-                      </div>
-                      <h2 className="text-3xl sm:text-5xl font-black text-foreground leading-[0.9] italic tracking-tighter uppercase">
-                        {(lastSession.workout_plans as any)?.name}
-                      </h2>
-                      <p className="text-muted-foreground font-medium text-sm sm:text-base tracking-wide opacity-70">
-                        Ultima sessione completata {formatDistanceToNow(new Date(lastSession.started_at), { addSuffix: true, locale: it })}.<br className="hidden sm:block" /> Pronto a superare i tuoi limiti?
-                      </p>
-                    </div>
-                    <Link 
-                      to={`/athlete/workout/${(lastSession.workout_plans as any)?.id}`}
-                      className="btn btn-primary h-20 sm:h-24 px-8 sm:px-12 rounded-[1.5rem] sm:rounded-[2rem] shadow-[0_20px_50px_rgba(6,182,212,0.3)] flex items-center gap-4 sm:gap-6 text-xl sm:text-2xl font-black transform hover:scale-105 active:scale-95 transition-all w-full md:w-auto overflow-hidden group/btn italic relative z-10"
-                    >
-                      <span className="relative z-10">START SESSION</span>
-                      <ArrowRight className="w-6 h-6 sm:w-8 sm:h-8 group-hover/btn:translate-x-3 transition-transform relative z-10" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0 group-hover:opacity-20 transition-opacity"></div>
-                    </Link>
-                    
-                    {/* Inner Decoration */}
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+                <div className="surface-glow p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+                  {/* Accent glow top-right */}
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-primary/6 rounded-full -mr-24 -mt-24 blur-3xl pointer-events-none" />
+
+                  <div className="space-y-3 relative z-10">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-primary/12 border border-primary/20 text-primary text-[10px] font-black uppercase tracking-[0.25em]">
+                      Next Mission
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight uppercase">
+                      {(lastSession.workout_plans as any)?.name}
+                    </h2>
+                    <p className="text-muted-foreground/60 text-sm leading-relaxed">
+                      Ultima sessione {formatDistanceToNow(new Date(lastSession.started_at), { addSuffix: true, locale: it })}.
+                      Pronto a superare i tuoi limiti?
+                    </p>
                   </div>
+
+                  <Link
+                    to={`/athlete/workout/${(lastSession.workout_plans as any)?.id}`}
+                    className="btn btn-primary h-14 px-8 text-sm font-black tracking-wide uppercase w-full md:w-auto relative z-10 group/btn"
+                  >
+                    Start Session
+                    <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform duration-200" />
+                  </Link>
                 </div>
               ) : (
-                <div className="card p-12 text-center space-y-6">
-                  <div className="w-24 h-24 bg-primary/10 rounded-[2rem] flex items-center justify-center mx-auto mb-4 border border-primary/20">
-                    <Dumbbell className="w-10 h-10 text-primary" />
+                <div className="surface p-10 text-center space-y-4">
+                  <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-center mx-auto">
+                    <Dumbbell className="w-8 h-8 text-primary" />
                   </div>
-                  <h2 className="text-3xl font-black text-foreground italic">Inizia la Trasformazione</h2>
-                  <p className="text-muted-foreground font-bold text-sm max-w-sm mx-auto uppercase tracking-widest opacity-60">Scegli una scheda e inizia a costruire la tua versione migliore.</p>
-                  <button 
+                  <h2 className="text-2xl font-black text-foreground">Inizia la Trasformazione</h2>
+                  <p className="text-muted-foreground/60 text-sm max-w-sm mx-auto">
+                    Scegli una scheda e inizia a costruire la tua versione migliore.
+                  </p>
+                  <button
                     onClick={() => setSearchParams({ tab: 'train' })}
-                    className="btn btn-primary px-10 h-14 rounded-2xl font-black tracking-widest uppercase"
+                    className="btn btn-primary px-8 mx-auto"
                   >
                     Sfoglia Schede
                   </button>
                 </div>
               )}
             </motion.div>
-            
-            {/* Recent Activity Mini-List */}
-            <div className="space-y-6">
-              <div className="flex items-center justify-between px-2">
-                <h3 className="text-2xl font-black text-foreground italic tracking-tight">Attività Recente</h3>
-                <Link 
-                  to="/athlete/calendar" 
-                  className="text-xs font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors"
+
+            {/* Recent Activity */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-lg font-black text-foreground tracking-tight">Attività Recente</h3>
+                <Link
+                  to="/athlete/calendar"
+                  className="text-[11px] font-bold uppercase tracking-widest text-primary hover:text-primary/80 transition-colors duration-200"
                 >
                   Vedi Archivio
                 </Link>
               </div>
-              <div className="grid grid-cols-1 gap-4">
+
+              <div className="space-y-3">
                 {history?.slice(0, 3).map((session, idx) => (
-                  <motion.div 
-                    key={session.id} 
+                  <motion.div
+                    key={session.id}
                     variants={itemVariants}
                     custom={idx}
                     onClick={() => setViewingSessionId(session.id)}
-                    className="glass-card p-6 rounded-3xl flex items-center justify-between group hover:bg-card/60 transition-all cursor-pointer border-white/5 hover:border-primary/20 shadow-xl"
+                    className="surface group flex items-center justify-between cursor-pointer"
                   >
-                    <div className="flex items-center gap-5">
-                      <div className="w-14 h-14 bg-background/50 rounded-2xl flex items-center justify-center text-muted-foreground group-hover:text-primary transition-colors border border-border group-hover:border-primary/30">
-                        <History className="w-7 h-7" />
+                    <div className="flex items-center gap-4">
+                      <div className="w-11 h-11 bg-secondary border border-border rounded-xl
+                                      flex items-center justify-center text-muted-foreground
+                                      group-hover:text-primary group-hover:border-primary/30 transition-all duration-200 shrink-0">
+                        <History className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="font-black text-foreground italic text-lg leading-none">{(session.workout_plans as any)?.name}</p>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-2">
-                          {format(new Date(session.started_at), "d MMMM", { locale: it })} • {Math.floor((session.duration_seconds || 0) / 60)} min
+                        <p className="font-bold text-foreground text-[15px] leading-none">
+                          {(session.workout_plans as any)?.name}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/50 font-semibold uppercase tracking-wider mt-1.5">
+                          {format(new Date(session.started_at), "d MMMM", { locale: it })}
+                          {' · '}
+                          {Math.floor((session.duration_seconds || 0) / 60)} min
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                       <button
-                         onClick={(e) => handleDeleteSession(e, session.id)}
-                         className="p-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all md:opacity-0 md:group-hover:opacity-100"
-                         title="Elimina"
-                       >
-                         <Trash2 className="w-5 h-5" />
-                       </button>
-                       <div className="w-10 h-10 rounded-full border border-border flex items-center justify-center group-hover:border-primary group-hover:bg-primary/10 transition-all">
-                        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-                       </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={(e) => handleDeleteSession(e, session.id)}
+                        className="p-2.5 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10
+                                   rounded-lg transition-all duration-200 md:opacity-0 md:group-hover:opacity-100"
+                        title="Elimina"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <div className="w-9 h-9 rounded-xl border border-border flex items-center justify-center
+                                      group-hover:border-primary/30 group-hover:bg-primary/8 transition-all duration-200">
+                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
                     </div>
                   </motion.div>
                 ))}
               </div>
             </div>
-
           </motion.div>
         )}
 
-        {/* --- TRAIN TAB --- */}
+        {/* TRAIN TAB */}
         {activeTab === 'train' && (
-          <motion.div 
+          <motion.div
             key="train"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            exit="hidden"
-            className="space-y-8"
+            exit={{ opacity: 0, y: -8 }}
+            className="space-y-6"
           >
-            <header className="mb-6 sm:mb-10">
-              <h2 className="text-2xl sm:text-3xl font-black text-foreground tracking-tight flex items-center gap-3 sm:gap-4 italic uppercase">
-                <div className="p-2 sm:p-3 bg-primary/10 rounded-xl sm:rounded-2xl border border-primary/20">
-                  <Dumbbell className="text-primary w-6 h-6 sm:w-8 sm:h-8" />
-                </div>
-                Le tue Schede
-              </h2>
-              <p className="text-[10px] sm:text-xs font-black uppercase tracking-[0.2em] mt-3 opacity-60">Programma personalizzato dal tuo coach</p>
+            <header className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <Dumbbell className="text-primary w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-foreground tracking-tight">Le tue Schede</h2>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 mt-0.5">
+                  Programma personalizzato dal tuo coach
+                </p>
+              </div>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
               {plans?.length === 0 ? (
-                <div className="col-span-full py-24 text-center glass-card rounded-[2.5rem] border-dashed border-border">
-                  <p className="text-muted-foreground font-bold uppercase tracking-widest">Nessuna scheda ancora assegnata.<br/>Contatta il tuo coach!</p>
+                <div className="col-span-full py-20 text-center surface border-dashed">
+                  <p className="text-muted-foreground/50 font-semibold">
+                    Nessuna scheda ancora assegnata.{' '}
+                    <br />Contatta il tuo coach!
+                  </p>
                 </div>
               ) : (
                 plans?.map((plan) => (
-                  <motion.div 
-                    key={plan.id} 
+                  <motion.div
+                    key={plan.id}
                     variants={itemVariants}
-                    className="card group hover:scale-[1.02] transition-all flex flex-col gap-6 sm:gap-8 relative overflow-hidden p-6 sm:p-8"
+                    className="surface-glow flex flex-col gap-5 relative overflow-hidden"
                   >
-                    <div className="flex-1 space-y-3 sm:space-y-4">
-                      <h3 className="text-2xl sm:text-3xl font-black text-foreground italic leading-none tracking-tight">{plan.name}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground font-medium line-clamp-2 leading-relaxed opacity-80">
-                        {plan.description || "Allenamento intensivo progettato per massimizzare i tuoi risultati."}
+                    {/* Accent decoration */}
+                    <div className="absolute top-0 right-0 w-28 h-28 bg-primary/5 rounded-full -mr-14 -mt-14 blur-2xl pointer-events-none" />
+
+                    <div className="relative z-10 space-y-2">
+                      <h3 className="text-xl font-black text-foreground tracking-tight leading-tight">{plan.name}</h3>
+                      <p className="text-sm text-muted-foreground/70 leading-relaxed line-clamp-2">
+                        {plan.description || 'Allenamento intensivo progettato per massimizzare i tuoi risultati.'}
                       </p>
                     </div>
 
-                      <div className="flex items-center gap-4 pt-4 sm:pt-6 border-t border-border">
-                        <div className="flex flex-col flex-1">
-                          <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-50">Ultimo aggiornamento</span>
-                          <span className="text-[10px] sm:text-xs font-black text-foreground italic mt-1 uppercase tracking-wider">
-                            {formatDistanceToNow(new Date(plan.created_at), { addSuffix: true, locale: it })}
-                          </span>
-                        </div>
-                        <div className="flex gap-2 sm:gap-3">
-                          <button 
-                            onClick={() => setViewingPlanId(plan.id)}
-                            className="btn h-12 w-12 sm:h-14 sm:w-14 bg-secondary/50 hover:bg-secondary text-foreground rounded-xl sm:rounded-2xl flex items-center justify-center border border-border transition-all hover:scale-110 active:scale-95"
-                          >
-                            <Eye className="w-5 h-5 sm:w-6 sm:h-6 opacity-60" />
-                          </button>
-                          <Link 
-                            to={`/athlete/workout/${plan.id}`}
-                            className="btn btn-primary h-12 w-12 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-xl shadow-primary/20 hover:scale-110 active:scale-95 transition-all"
-                          >
-                            <Play className="w-6 h-6 sm:w-7 sm:h-7 fill-current ml-1" />
-                          </Link>
-                        </div>
+                    <div className="flex items-center gap-3 pt-4 border-t border-border relative z-10">
+                      <div className="flex-1">
+                        <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground/40 block">
+                          Aggiornato
+                        </span>
+                        <span className="text-[11px] font-bold text-foreground/70 mt-0.5 block">
+                          {formatDistanceToNow(new Date(plan.created_at), { addSuffix: true, locale: it })}
+                        </span>
                       </div>
-                      
-                      {/* Decoration */}
-                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/5 blur-3xl rounded-full"></div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setViewingPlanId(plan.id)}
+                          className="btn btn-secondary w-11 h-11 !p-0 !rounded-xl justify-center"
+                        >
+                          <Eye className="w-5 h-5 opacity-70" />
+                        </button>
+                        <Link
+                          to={`/athlete/workout/${plan.id}`}
+                          className="btn btn-primary w-11 h-11 !p-0 !rounded-xl justify-center shadow-lg shadow-primary/20"
+                        >
+                          <Play className="w-5 h-5 fill-current ml-0.5" />
+                        </Link>
+                      </div>
+                    </div>
                   </motion.div>
                 ))
               )}
@@ -375,19 +397,17 @@ export default function AthleteDashboard() {
           </motion.div>
         )}
 
-
       </AnimatePresence>
 
-      {/* Workout Plan View Modal */}
+      {/* Modals */}
       {viewingPlanId && (
-        <WorkoutPlanView 
+        <WorkoutPlanView
           planId={viewingPlanId}
           isOpen={!!viewingPlanId}
           onClose={() => setViewingPlanId(null)}
         />
       )}
 
-      {/* Workout Session Detail Modal */}
       {viewingSessionId && (
         <WorkoutSessionDetailModal
           sessionId={viewingSessionId}
@@ -396,7 +416,6 @@ export default function AthleteDashboard() {
         />
       )}
 
-      {/* Daily Check-In Modal */}
       <DailyCheckInModal
         isOpen={isCheckInOpen}
         onClose={() => setIsCheckInOpen(false)}
@@ -405,4 +424,3 @@ export default function AthleteDashboard() {
     </div>
   );
 }
-
