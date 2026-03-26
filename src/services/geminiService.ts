@@ -52,6 +52,38 @@ const getModel = (options?: { model?: string, tools?: any, responseSchema?: any 
   });
 };
 
+/**
+ * Executes an AI operation with automatic retry on different API keys.
+ */
+const executeWithRetry = async <T>(
+  operation: (model: any) => Promise<T>,
+  options?: { model?: string, tools?: any, responseSchema?: any }
+): Promise<T | null> => {
+  const allKeys = geminiKeyManager.getAllKeys();
+  const maxRetries = Math.max(1, allKeys.length);
+  let lastError: any = null;
+
+  for (let i = 0; i < maxRetries; i++) {
+    const model = getModel(options);
+    if (!model) break;
+
+    try {
+      return await operation(model);
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`Gemini API call failed (attempt ${i + 1}/${maxRetries} with rotated key).`, error.message || error);
+      
+      // If we have more keys to try, continue the loop
+      if (i < maxRetries - 1) {
+        continue;
+      }
+    }
+  }
+
+  console.error("Gemini API call failed after all available keys were tried.", lastError);
+  return null;
+};
+
 const getTodayContext = () => {
   const now = new Date();
   const dayName = new Intl.DateTimeFormat('it-IT', { weekday: 'long' }).format(now);
@@ -132,30 +164,17 @@ const WORKOUT_SCHEMA = {
 
 export const geminiService = {
   async generateEmbedding(text: string) {
-    const genAI = getGenAI();
-    if (!genAI) return null;
-    try {
-      // Use gemini-embedding-001 with forced 768 dimensions to match DB schema
-      const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+    return executeWithRetry(async (model) => {
       const result = await model.embedContent({
         content: { role: 'user', parts: [{ text }] },
         // @ts-ignore
         outputDimensionality: 768
       });
       return result.embedding.values;
-    } catch (error) {
-      console.error("Error generating embedding (768 diminished):", error);
-      return null;
-    }
+    }, { model: "gemini-embedding-001" });
   },
 
   async generateStrategicAdvice(athleteData: any, workoutData: any) {
-    const model = getModel();
-    if (!model) {
-      console.warn("Gemini API Key missing or rotation failed. Skipping strategic advice.");
-      return null;
-    }
-
     const context = getTodayContext();
     const prompt = `
       ### RUOLO
@@ -185,23 +204,17 @@ export const geminiService = {
       }
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
       // Basic JSON cleaning if needed
       const cleanJson = text.replace(/```json|```/g, "").trim();
       return JSON.parse(cleanJson);
-    } catch (error) {
-      console.error("Error generating strategic advice:", error);
-      return null;
-    }
+    });
   },
 
   async suggestRecipesForMeal(targetMacros: { kcal: number, protein: number, carbs: number, fat: number }, ppreferences: string = "") {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       Suggerisci 3 idee di pasti veloci che rispettino circa questi macro:
       Kcal: ${targetMacros.kcal}, Proteine: ${targetMacros.protein}g, Carboidrati: ${targetMacros.carbs}g, Grassi: ${targetMacros.fat}g.
@@ -211,22 +224,16 @@ export const geminiService = {
       { "recipes": [ { "name": "Nome", "description": "Breve desc", "macros": "Kcal: X, P: Y, C: Z, F: W" } ] }
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
       const cleanJson = text.replace(/```json|```/g, "").trim();
       return JSON.parse(cleanJson);
-    } catch (error) {
-      console.error("Error suggesting recipes:", error);
-      return null;
-    }
+    });
   },
 
   async generateMealPlan(coachGuidelines: string | null, targetMacros: any, athletePreferences: any) {
-    const model = getModel();
-    if (!model) return null;
-
     const context = getTodayContext();
     const prompt = `
       ### RUOLO
@@ -271,22 +278,16 @@ export const geminiService = {
       }
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
       const cleanJson = text.replace(/```json|```/g, "").trim();
       return JSON.parse(cleanJson);
-    } catch (error) {
-      console.error("Error generating meal plan with AI:", error);
-      return null;
-    }
+    });
   },
 
   async regenerateMeal(mealName: string, targetMealMacros: any, constraints: any, reason: string) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       ### OBIETTIVO
       Sostituisci il pasto "${mealName}" con un'alternativa valida.
@@ -310,22 +311,16 @@ export const geminiService = {
       }
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
       const cleanJson = text.replace(/```json|```/g, "").trim();
       return JSON.parse(cleanJson);
-    } catch (error) {
-      console.error("Error regenerating meal:", error);
-      return null;
-    }
+    });
   },
 
   async generateNutritionEnrichment(dietPlan: any, profile: any, workoutPlan: any) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       Sei un nutrizionista esperto. Arricchisci il seguente piano alimentare spiegando come si adatta alle preferenze dell'atleta e al suo allenamento.
       Piano: ${JSON.stringify(dietPlan)}
@@ -336,13 +331,10 @@ export const geminiService = {
       Evidenzia come i pasti supportano le sessioni di allenamento specifiche.
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       return result.response.text();
-    } catch (error) {
-      console.error("Error generating nutrition enrichment:", error);
-      return "Impossibile generare l'arricchimento del piano in questo momento.";
-    }
+    });
   },
 
   async generateAthleteBriefing(athleteProfile: any, dietPlan: any, workoutPlan: any, _recentLogs: any) {
@@ -379,9 +371,6 @@ export const geminiService = {
   },
 
   async generateWeeklyOptimization(weekEntries: any[], dietPlan: any, activeWorkout: any, profile: any) {
-    const model = getModel();
-    if (!model) return null;
-
     const context = getTodayContext();
     const prompt = `
       ### RUOLO
@@ -412,19 +401,13 @@ export const geminiService = {
     `;
 
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       return result.response.text();
-    } catch (error) {
-      console.error("Error generating weekly optimization:", error);
-      return "Impossibile ottimizzare la giornata in questo momento.";
-    }
+    });
   },
 
   async generateRecipe(targetKcal: number, preferences: any) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       Genera una ricetta fitness di circa ${targetKcal} kcal.
       Preferenze/Intolleranze: ${JSON.stringify(preferences)}
@@ -442,46 +425,35 @@ export const geminiService = {
       }
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       const text = result.response.text();
       const cleanJson = text.replace(/```json|```/g, "").trim();
       return JSON.parse(cleanJson);
-    } catch (error) {
-      console.error("Error generating recipe:", error);
-      return null;
-    }
+    });
   },
 
-  async runAgentSkill(agentName: string, skillName: string, systemPrompt: string, userMessage: string, skillTools: any) {
-    if (!geminiKeyManager.hasKeys()) return null;
-
+  async runAgentSkill(_agentName: string, _skillName: string, systemPrompt: string, userMessage: string, skillTools: any) {
     const functionDeclarations = Object.values(skillTools).map((t: any) => ({
       name: t.name,
       description: t.description,
       parameters: t.parameters
     }));
 
-    const model = getModel({ 
-      tools: [{ functionDeclarations }] as any
-    });
-
-    if (!model) return null;
-
-    const chat = model.startChat();
-    // Inseriamo il prompt di sistema come primo messaggio o istruzione
-    const initialPrompt = `${systemPrompt}\n\nUSER REQUEST: ${userMessage}`;
-
-    try {
+    return executeWithRetry(async (model) => {
+      const chat = model.startChat();
+      // Inseriamo il prompt di sistema come primo messaggio o istruzione
+      const initialPrompt = `${systemPrompt}\n\nUSER REQUEST: ${userMessage}`;
+      
       let result = await chat.sendMessage(initialPrompt);
       let response = result.response;
       
       let iterations = 0;
-      while (response.candidates?.[0]?.content?.parts?.some(p => p.functionCall) && iterations < 8) {
+      while (response.candidates?.[0]?.content?.parts?.some((p: any) => p.functionCall) && iterations < 8) {
         iterations++;
-        const functionCalls = response.candidates[0].content.parts.filter(p => p.functionCall);
+        const functionCalls = response.candidates[0].content.parts.filter((p: any) => p.functionCall);
         
-        const toolResponses = await Promise.all(functionCalls.map(async (part) => {
+        const toolResponses = await Promise.all(functionCalls.map(async (part: any) => {
           const call = part.functionCall!;
           // Cerchiamo il tool specifico nella skill o nel registro globale
           const tool = (skillTools as any)[call.name] || (skillRegistry as any)[call.name];
@@ -508,10 +480,9 @@ export const geminiService = {
         // Se non è JSON, ritorniamo il testo puro (alcuni agenti come l'analyst usano markdown)
         return { text: text.trim() };
       }
-    } catch (error) {
-      console.error(`Error in ${agentName}/${skillName}:`, error);
-      return null;
-    }
+    }, { 
+      tools: [{ functionDeclarations }] as any 
+    });
   },
 
   async decomposeMeal(dishName: string, targetKcal: number = 500) {
@@ -557,22 +528,15 @@ export const geminiService = {
   },
 
   async transcribeAudio(audioBase64: string) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `Trascrivi fedelmente questo audio in italiano. Rispondi SOLO con la trascrizione testuale, senza commenti o altro.`;
     
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent([
         prompt,
         { inlineData: { mimeType: "audio/webm", data: audioBase64 } }
       ]);
       return result.response.text().trim();
-
-    } catch (e) {
-      console.error("Transcription failed", e);
-      return null;
-    }
+    });
   },
 
 
@@ -593,27 +557,30 @@ export const geminiService = {
   async processWorkoutInstructions(instructions: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string, planTitle?: string, planDescription?: string) {
     // 1. EXTRACT EXERCISE NAMES (Pre-analysis)
     let extractedNames: string[] = [];
+    
+    const extractionPrompt = `
+      Analizza queste istruzioni di allenamento: "${instructions}"
+      Estrai SOLO i nomi degli esercizi menzionati (es. "panca piana", "squat", "plank").
+      
+      REGOLE di ESTRAZIONE:
+      1. Se un esercizio è una correzione (es. "No, intendevo panca inclinata"), estrai solo il nome CORRETTO.
+      2. Normalizza i nomi: se un coach usa termini italiani comuni (es. "Pulley basso", "Panca piana", "Croci"), fornisci SIA il nome originale SIA la traduzione standard in inglese (es. "Pulley basso | Low Pulley Row", "Panca piana | Bench Press"). Questo aiuta il matching testuale.
+      3. Singolare/Plurale: Se il nome è ambiguo, fornisci entrambe le varianti (es. "crunch | crunches").
+      
+      Rispondi con una lista separata da virgole (puoi usare il pipe | all'interno degli elementi per i sinonimi). 
+      Se non trovi nulla, rispondi con "NULL".
+    `;
     try {
-      const model = getModel();
-      if (!model) return null;
-
-      const extractionPrompt = `
-        Analizza queste istruzioni di allenamento: "${instructions}"
-        Estrai SOLO i nomi degli esercizi menzionati (es. "panca piana", "squat", "plank").
-        
-        REGOLE di ESTRAZIONE:
-        1. Se un esercizio è una correzione (es. "No, intendevo panca inclinata"), estrai solo il nome CORRETTO.
-        2. Normalizza i nomi: se un coach usa termini italiani comuni (es. "Pulley basso", "Panca piana", "Croci"), fornisci SIA il nome originale SIA la traduzione standard in inglese (es. "Pulley basso | Low Pulley Row", "Panca piana | Bench Press"). Questo aiuta il matching testuale.
-        3. Singolare/Plurale: Se il nome è ambiguo, fornisci entrambe le varianti (es. "crunch | crunches").
-        
-        Rispondi con una lista separata da virgole (puoi usare il pipe | all'interno degli elementi per i sinonimi). 
-        Se non trovi nulla, rispondi con "NULL".
-      `;
-      const extractionResult = await model.generateContent(extractionPrompt);
-      const extractionText = extractionResult.response.text().trim();
-      if (extractionText !== "NULL") {
-        const rawNames = extractionText.split(',').map(s => s.trim()).filter(Boolean);
-        extractedNames = rawNames.flatMap(n => n.includes('|') ? n.split('|').map(s => s.trim()) : [n]);
+      const extractionResult = await executeWithRetry(async (model) => {
+        return await model.generateContent(extractionPrompt);
+      });
+      
+      if (extractionResult) {
+        const extractionText = extractionResult.response.text().trim();
+        if (extractionText !== "NULL") {
+          const rawNames = extractionText.split(',').map((s: string) => s.trim()).filter(Boolean);
+          extractedNames = rawNames.flatMap((n: string) => n.includes('|') ? n.split('|').map((s: string) => s.trim()) : [n]);
+        }
       }
     } catch (e) {
       console.error("Name extraction failed:", e);
@@ -686,12 +653,11 @@ export const geminiService = {
       console.log(`Switching to robust model: ${selectedModel} (complexity: ${complexityScore.toFixed(1)})`);
     }
 
-    const model = getModel({ 
+    const modelOptions = { 
       model: selectedModel,
       // @ts-ignore
       responseSchema: WORKOUT_SCHEMA 
-    });
-    if (!model) return null;
+    };
 
     const prompt = `
       ### RUOLO
@@ -746,7 +712,7 @@ export const geminiService = {
       Rispondi ESCLUSIVAMENTE con un JSON valido che rispetti lo schema richiesto.
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       const text = result.response.text();
       const start = text.indexOf('{');
@@ -756,19 +722,10 @@ export const geminiService = {
       }
       const cleanJson = text.substring(start, end + 1).trim();
       return JSON.parse(cleanJson);
-    } catch (error) {
-      console.error("Error processing workout instructions:", error);
-      if (error instanceof Error) {
-        return { error: error.message };
-      }
-      return { error: String(error) };
-    }
+    }, modelOptions);
   },
 
   async extractPreferenceEssence(audioBase64: string) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       ### RUOLO
       Sei un assistente AI per un coach di fitness. Il tuo compito è estrarre l'essenza di una preferenza o regola espressa vocalmente.
@@ -788,7 +745,7 @@ export const geminiService = {
       - Usa uno stile diretto e professionale.
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent([
         prompt,
         {
@@ -799,16 +756,10 @@ export const geminiService = {
         }
       ]);
       return result.response.text().trim();
-    } catch (error) {
-      console.error("Error extracting preference essence:", error);
-      return null;
-    }
+    });
   },
 
   async structureNutritionalDirectives(rawText: string, athleteContext: { weight?: number, targetKcal?: number, macros?: any, preferences?: string[], intolerances?: string[], dislikedFoods?: string[] }) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       ### RUOLO
       Sei un Nutrizionista Sportivo Professionista. Il tuo compito è trasformare le note informali di un coach in un documento Markdown strutturato, tecnico e motivante.
@@ -852,19 +803,13 @@ export const geminiService = {
       - Rispondi SOLO con il Markdown.
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       return result.response.text().trim();
-    } catch (error) {
-      console.error("Error structuring nutritional directives:", error);
-      return null;
-    }
+    });
   },
 
   async chatDietDirectives(currentMd: string, userMessage: string, athleteContext: { weight?: number, targetKcal?: number, macros?: any }) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       ### RUOLO
       Sei l'Assistente AI del Nutrizionista. Devi aggiornare le direttive esistenti in base alle nuove istruzioni della chat.
@@ -885,18 +830,12 @@ export const geminiService = {
       4. Rispondi SOLO con il Markdown completo aggiornato.
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       return result.response.text().trim();
-    } catch (error) {
-      console.error("Error in chat diet directives:", error);
-      return null;
-    }
+    });
   },
   async structureFocusObjectives(rawText: string, athleteContext: { first_name?: string, last_name?: string, weight?: number, height?: number, age?: number, gender?: string }) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       ### RUOLO
       Sei un Head Coach di Fitness e Performance. Il tuo compito è trasformare le note sparse su obiettivi e focus in un documento strategico Markdown.
@@ -928,19 +867,13 @@ export const geminiService = {
       - Rispondi SOLO con il Markdown.
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       return result.response.text().trim();
-    } catch (error) {
-      console.error("Error structuring focus objectives:", error);
-      return null;
-    }
+    });
   },
 
   async chatFocusObjectives(currentMd: string, userMessage: string, athleteContext: any) {
-    const model = getModel();
-    if (!model) return null;
-
     const prompt = `
       ### RUOLO
       Sei l'Assistente AI del Coach. Devi aggiornare il documento "Focus e Obiettivi" tramite chat context.
@@ -960,13 +893,10 @@ export const geminiService = {
       - Rispondi SOLO con il Markdown completo aggiornato.
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const result = await model.generateContent(prompt);
       return result.response.text().trim();
-    } catch (error) {
-      console.error("Error in chat focus objectives:", error);
-      return null;
-    }
+    });
   },
 
   async processOnboardingMessage(params: {
@@ -977,9 +907,6 @@ export const geminiService = {
     history: { role: 'user' | 'model'; parts: { text: string }[] }[];
     mission: 'BIOMETRICS' | 'EXPERIENCE' | 'GOALS' | 'PHILOSOPHY';
   }) {
-    const model = getModel();
-    if (!model) return null;
-
     let userText = params.message || '';
     if (params.audioBase64) {
       const transcription = await this.transcribeAudio(params.audioBase64);
@@ -1022,7 +949,7 @@ export const geminiService = {
       MESSAGGIO UTENTE: "${userText}"
     `;
 
-    try {
+    return executeWithRetry(async (model) => {
       const chat = model.startChat({ history: params.history });
       const result = await chat.sendMessage(prompt);
       const text = result.response.text();
@@ -1031,10 +958,7 @@ export const geminiService = {
       const cleanJson = text.substring(start, end + 1).trim();
       const parsed = JSON.parse(cleanJson);
       return { ...parsed, userText };
-    } catch (error) {
-      console.error("Error in processOnboardingMessage:", error);
-      return { error: "Errore nel processamento del messaggio." };
-    }
+    });
   },
 
   setOverrideModel(model: GeminiModelType) {
