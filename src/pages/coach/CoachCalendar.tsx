@@ -93,53 +93,53 @@ export default function CoachCalendar() {
   ].sort((a, b) => a.sortDate.getTime() - b.sortDate.getTime());
 
   return (
-    <div className="space-y-10 max-w-[1400px] mx-auto pb-20">
+    <div className="h-[calc(100vh-8rem)] flex flex-col space-y-8 px-4 sm:px-6 lg:px-8">
       {/* Header */}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 px-1">
-        <div className="space-y-4">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 shrink-0">
+        <div className="space-y-2">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-secondary/10 rounded-[2rem] flex items-center justify-center border border-white/5 relative group shrink-0">
-              <CalendarIcon className="text-primary w-6 h-6 group-hover:scale-110 transition-transform" />
+            <div className="w-12 h-12 bg-secondary/10 rounded-[1.5rem] flex items-center justify-center border border-white/5 relative group shrink-0">
+              <CalendarIcon className="text-primary w-5 h-5 group-hover:scale-110 transition-transform" />
               <div className="absolute inset-0 blur-lg bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
             </div>
             <div>
-              <h1 className="text-2xl sm:text-4xl font-black text-foreground tracking-tighter italic uppercase leading-none">
+              <h1 className="text-xl sm:text-3xl font-black text-foreground tracking-tighter italic uppercase leading-none">
                 Master Schedule
               </h1>
-              <p className="text-muted-foreground mt-2 font-bold uppercase tracking-[0.3em] text-[10px] opacity-40">Gestione appuntamenti e check-in strategici</p>
+              <p className="text-muted-foreground mt-1 font-bold uppercase tracking-[0.3em] text-[9px] opacity-40">Gestione appuntamenti e check-in strategici</p>
             </div>
           </div>
         </div>
         
         <button 
           onClick={() => setIsAddModalOpen(true)}
-          className="h-14 px-8 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-[11px] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-98 transition-all flex items-center justify-center gap-3 shrink-0"
+          className="h-12 px-6 bg-primary text-white rounded-xl font-black italic uppercase tracking-widest text-[10px] shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-98 transition-all flex items-center justify-center gap-2 shrink-0"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           Programma Prossima Sessione
         </button>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
         {/* Main Calendar Area */}
-        <div className="lg:col-span-8 xl:col-span-9">
+        <div className="lg:col-span-8 xl:col-span-9 h-full min-h-0">
           <Calendar 
             appointments={appointments} 
             todos={todos}
-            className="h-full" 
+            className="h-full overflow-y-auto custom-scrollbar" 
           />
         </div>
 
         {/* Sidebar: Upcoming Tasks */}
-        <div className="lg:col-span-4 xl:col-span-3 space-y-8">
-          <div className="flex items-center justify-between px-2">
-            <h2 className="text-xl font-black text-foreground italic uppercase tracking-tight">Prossimi Task</h2>
-            <div className="px-3 py-1 bg-secondary/20 rounded-full border border-white/5">
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{allTasks.length}</span>
+        <div className="lg:col-span-4 xl:col-span-3 flex flex-col space-y-6 h-full min-h-0">
+          <div className="flex items-center justify-between px-2 shrink-0">
+            <h2 className="text-lg font-black text-foreground italic uppercase tracking-tight">Prossimi Task</h2>
+            <div className="px-2 py-0.5 bg-secondary/20 rounded-full border border-white/5">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{allTasks.length}</span>
             </div>
           </div>
           
-          <div className="space-y-4 h-[calc(100vh-350px)] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
              <AnimatePresence mode="popLayout">
               {allTasks.map((task, idx) => (
                 <motion.div 

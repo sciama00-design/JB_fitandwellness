@@ -145,6 +145,7 @@ export default function ExerciseLibrary() {
           exercise={selectedExercise}
           isOpen={!!selectedExercise}
           onClose={() => setSelectedExercise(null)}
+          isCoach={role === 'coach'}
         />
       )}
     </div>

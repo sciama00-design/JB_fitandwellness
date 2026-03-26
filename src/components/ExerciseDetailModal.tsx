@@ -1,4 +1,4 @@
-import { X, Target, Zap, ChevronLeft, ChevronRight, Info, Flame, Shield, Activity, Dumbbell, Tv, Trash2 } from 'lucide-react';
+import { X, Target, Zap, ChevronLeft, ChevronRight, Info, Flame, Shield, Activity, Dumbbell, Tv, Trash2, Edit2 } from 'lucide-react';
 import { useState } from 'react';
 import type { ExerciseLibrary } from '../types/database';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,10 +11,11 @@ interface ExerciseDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDelete?: (id: string) => void;
+  onEdit?: (id: string) => void;
   isCoach?: boolean;
 }
 
-export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelete, isCoach }: ExerciseDetailModalProps) {
+export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelete, onEdit, isCoach }: ExerciseDetailModalProps) {
   const { user } = useAuth();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isMediaViewerOpen, setIsMediaViewerOpen] = useState(false);
@@ -52,13 +53,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
         className="relative glass-card w-full max-w-6xl h-full md:h-auto md:max-h-[90vh] rounded-none md:rounded-[3.5rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row border-white/10 bg-card/40 backdrop-blur-3xl"
       >
         
-        {/* Close Button - Mobile Top Right */}
-        <button 
-          onClick={onClose}
-          className="absolute top-8 right-8 z-30 w-14 h-14 bg-background/40 hover:bg-white/10 text-foreground rounded-2xl backdrop-blur-xl border border-white/10 transition-all md:hidden flex items-center justify-center shadow-2xl"
-        >
-          <X className="w-8 h-8" />
-        </button>
+        {/* Removed redundant Mobile Close Button to fix double X issue */}
 
         {/* Left Side: Images/Media */}
         <div className="w-full md:w-1/2 relative bg-background/40 flex flex-col h-[40vh] md:h-auto min-h-[300px] md:min-h-0 overflow-hidden border-b md:border-b-0 md:border-r border-white/5">
@@ -125,35 +120,47 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
         </div>
 
         {/* Right Side: Information */}
-        <div className="w-full md:w-1/2 flex flex-col p-6 md:p-16 bg-gradient-to-br from-secondary/10 to-transparent overflow-hidden min-h-0 flex-1 relative">
+        <div className="w-full md:w-1/2 flex flex-col p-5 md:p-16 bg-gradient-to-br from-secondary/10 to-transparent overflow-hidden min-h-0 flex-1 relative">
           
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl opacity-50 pointer-events-none"></div>
 
-          {/* Header */}
-          <div className="flex items-start justify-between mb-10 shrink-0 relative z-10">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span className="px-3 py-1 bg-primary/10 border border-primary/20 rounded-lg text-[9px] uppercase font-black tracking-[0.2em] text-primary italic">
+          <div className="flex items-start justify-between mb-6 md:mb-10 shrink-0 relative z-10">
+            <div className="space-y-2 md:space-y-4 flex-1 min-w-0 pr-4">
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                <span className="px-2 md:px-3 py-0.5 md:py-1 bg-primary/10 border border-primary/20 rounded-lg text-[8px] md:text-[9px] uppercase font-black tracking-[0.2em] text-primary italic">
                   {translateExerciseTerm('difficulty_level', exercise.difficulty_level) || 'Asset Elite'}
                 </span>
                 {exercise.mechanic && (
-                  <span className="px-3 py-1 bg-secondary/20 border border-white/5 rounded-lg text-[9px] uppercase font-black tracking-[0.2em] text-muted-foreground italic">
+                  <span className="px-2 md:px-3 py-0.5 md:py-1 bg-secondary/20 border border-white/5 rounded-lg text-[8px] md:text-[9px] uppercase font-black tracking-[0.2em] text-muted-foreground italic">
                     {translateExerciseTerm('mechanic', exercise.mechanic)}
                   </span>
                 )}
               </div>
-              <h2 className="text-2xl md:text-5xl font-black text-foreground leading-[1.1] md:leading-[0.9] italic uppercase tracking-tighter">{exercise.name_it || exercise.name}</h2>
+              <h2 className="text-xl md:text-5xl font-black text-foreground leading-[1.1] md:leading-[0.9] italic uppercase tracking-tighter break-words">{exercise.name_it || exercise.name}</h2>
             </div>
             
             {/* Action Buttons */}
-            <div className="flex gap-4">
+            <div className="flex gap-2 md:gap-4 shrink-0">
               {(exercise.video_urls && exercise.video_urls.length > 0) && (
                 <button 
-                  onClick={() => setIsMediaViewerOpen(true)}
-                  className="w-16 h-16 glass-interactive rounded-[2rem] flex items-center justify-center text-primary hover:bg-primary/20 transition-all border-white/10 group"
+                   onClick={() => setIsMediaViewerOpen(true)}
+                  className="w-10 h-10 md:w-16 md:h-16 glass-interactive rounded-xl md:rounded-[2rem] flex items-center justify-center text-primary hover:bg-primary/20 transition-all border-white/10 group"
                   title="Apri Media Viewer"
                 >
-                  <Tv className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                  <Tv className="w-5 h-5 md:w-8 md:h-8 group-hover:scale-110 transition-transform" />
+                </button>
+              )}
+
+              {isCoach && onEdit && (
+                <button 
+                  onClick={() => {
+                    onEdit?.(exercise.id);
+                    onClose();
+                  }}
+                  className="w-10 h-10 md:w-16 md:h-16 glass-interactive rounded-xl md:rounded-[2rem] flex items-center justify-center text-primary hover:bg-primary/20 transition-all border-white/10 group"
+                  title="Modifica Esercizio"
+                >
+                  <Edit2 className="w-5 h-5 md:w-8 md:h-8 group-hover:scale-110 transition-transform" />
                 </button>
               )}
 
@@ -165,24 +172,27 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
                       onClose();
                     }
                   }}
-                  className="w-16 h-16 glass-interactive rounded-[2rem] flex items-center justify-center text-red-500/40 hover:text-red-500 hover:bg-red-500/10 transition-all border-white/10 group"
+                  className="w-10 h-10 md:w-16 md:h-16 glass-interactive rounded-xl md:rounded-[2rem] flex items-center justify-center text-red-500/40 hover:text-red-500 hover:bg-red-500/10 transition-all border-white/10 group"
                   title="Elimina Esercizio Custom"
                 >
-                  <Trash2 className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                  <Trash2 className="w-5 h-5 md:w-8 md:h-8 group-hover:scale-110 transition-transform" />
                 </button>
               )}
 
               <button 
                 onClick={onClose}
-                className="w-16 h-16 glass-interactive rounded-[2rem] flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all border-white/10 group/close"
+                className="w-10 h-10 md:w-16 md:h-16 glass-interactive rounded-xl md:rounded-[2rem] flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all border-white/10 group/close"
               >
-                <X className="w-8 h-8 group-hover/close:rotate-90 transition-transform duration-500" />
+                <X className="w-5 h-5 md:w-8 md:h-8 group-hover/close:rotate-90 transition-transform duration-500" />
               </button>
             </div>
           </div>
 
-          {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 gap-4 md:gap-6 mb-8 md:mb-12 shrink-0 relative z-10">
+          {/* Move Stats and Description into a single scrollable area on mobile if needed, 
+              but for now let's just make the whole right column scrollable if content overflows */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar md:pr-4 md:-mr-4 relative z-10 flex flex-col">
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-2 gap-3 md:gap-6 mb-8 md:mb-12 shrink-0">
             <div className="p-4 md:p-6 rounded-2xl md:rounded-[2rem] bg-background/40 border border-white/5 shadow-inner group hover:border-primary/20 transition-all">
               <div className="flex items-center gap-3 text-primary/60 mb-2 font-black uppercase tracking-[0.2em] text-[8px] md:text-[9px]">
                 <Target className="w-3.5 h-3.5" />
@@ -224,8 +234,7 @@ export default function ExerciseDetailModal({ exercise, isOpen, onClose, onDelet
             </div>
           </div>
 
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-4 -mr-4 relative z-10">
+            {/* Description Content */}
             <div className="space-y-6 pb-10">
               <div className="flex items-center gap-3 text-foreground py-2 border-b border-white/5 mb-4">
                 <Info className="w-5 h-5 text-primary" />

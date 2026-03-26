@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Plus, Trash2, Globe, Languages } from 'lucide-react';
+import { Save, Plus, Trash2, Globe, Languages, X } from 'lucide-react';
 import Modal from '../Modal';
 import { EXERCISE_TRANSLATIONS } from '../../lib/translations';
 import { exerciseService } from '../../services/exerciseService';
@@ -329,13 +329,18 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
             {formData.images?.map((url, idx) => (
               <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-white/5 bg-secondary/5">
-                <img src={url} alt="" className="w-full h-full object-cover" />
+                <img src={url} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                 <button
                   type="button"
-                  onClick={() => removeImage(url)}
-                  className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                  onClick={() => {
+                    if (window.confirm('Rimuovere questa immagine?')) {
+                      removeImage(url);
+                    }
+                  }}
+                  className="absolute top-2 right-2 w-8 h-8 bg-red-500/90 hover:bg-red-500 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white shadow-xl backdrop-blur-sm"
+                  title="Rimuovi Immagine"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             ))}

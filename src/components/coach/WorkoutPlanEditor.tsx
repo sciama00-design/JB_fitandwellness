@@ -921,20 +921,13 @@ export default function WorkoutPlanEditor({
         <ExerciseSelector onSelect={addExercise} onInfo={(ex) => setSelectedExerciseInfo(ex)} />
       </Modal>
 
-      {selectedExerciseInfo && (
-        <ExerciseDetailModal 
-          exercise={selectedExerciseInfo}
-          isOpen={!!selectedExerciseInfo}
-          onClose={() => setSelectedExerciseInfo(null)}
-        />
-      )}
-
       <AnimatePresence>
         {selectedExerciseInfo && (
           <ExerciseDetailModal 
             exercise={selectedExerciseInfo}
             isOpen={!!selectedExerciseInfo}
             onClose={() => setSelectedExerciseInfo(null)}
+            isCoach={true}
           />
         )}
       </AnimatePresence>

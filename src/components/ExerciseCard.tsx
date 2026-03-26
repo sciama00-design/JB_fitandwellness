@@ -17,7 +17,7 @@ export default function ExerciseCard({ exercise, onInfo, onEdit, isCoach }: Exer
     <motion.div 
       whileHover={{ y: -5, scale: 1.02, backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
       whileTap={{ scale: 0.98 }}
-      className="glass-card group p-3 rounded-3xl border-white/5 hover:border-primary/20 transition-all cursor-pointer bg-secondary/5 relative overflow-hidden flex flex-col h-[132px] w-full"
+      className="glass-card group p-2.5 md:p-3 rounded-[1.5rem] md:rounded-3xl border-white/5 hover:border-primary/20 transition-all cursor-pointer bg-secondary/5 relative overflow-hidden flex flex-col h-[120px] md:h-[132px] w-full"
       onClick={() => onInfo?.(exercise.id)}
     >
       {/* Background Decor */}
@@ -27,7 +27,7 @@ export default function ExerciseCard({ exercise, onInfo, onEdit, isCoach }: Exer
         <div className="flex items-center justify-between gap-3 text-left">
           <div className="flex items-center gap-3.5 flex-1 min-w-0">
             {/* Image Container */}
-            <div className="w-14 h-14 rounded-2xl bg-background/50 flex items-center justify-center text-primary border border-white/10 shadow-xl group-hover:scale-105 transition-transform overflow-hidden shrink-0 relative">
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-background/50 flex items-center justify-center text-primary border border-white/10 shadow-xl group-hover:scale-105 transition-transform overflow-hidden shrink-0 relative">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
               {exercise.images && exercise.images[0] ? (
                 <img 
@@ -44,7 +44,7 @@ export default function ExerciseCard({ exercise, onInfo, onEdit, isCoach }: Exer
 
             {/* Content */}
             <div className="min-w-0 flex-1 py-0.5">
-              <h3 className="font-black text-[13px] text-foreground/90 italic uppercase tracking-normal leading-[1.2] group-hover:text-primary transition-colors line-clamp-2 min-h-[2.4em] flex items-center">
+              <h3 className="font-black text-[12px] md:text-[13px] text-foreground/90 italic uppercase tracking-normal leading-[1.2] group-hover:text-primary transition-colors line-clamp-2 min-h-[2.4em] flex items-center">
                 {exercise.name_it || exercise.name}
               </h3>
               <div className="flex items-center gap-1.5 mt-1 opacity-50 group-hover:opacity-100 transition-opacity">
@@ -57,7 +57,7 @@ export default function ExerciseCard({ exercise, onInfo, onEdit, isCoach }: Exer
           </div>
 
           {/* Actions */}
-          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300 shrink-0">
+          <div className={`flex flex-col gap-1 transition-all duration-300 shrink-0 ${isCoach ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
             <button 
               onClick={(e) => { e.stopPropagation(); onInfo?.(exercise.id); }}
               className="w-7 h-7 glass-interactive rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary transition-all border border-white/5"
@@ -100,7 +100,7 @@ export default function ExerciseCard({ exercise, onInfo, onEdit, isCoach }: Exer
               </span>
             )}
             {exercise.equipment && (
-              <span className="px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-primary/5 text-primary/40 rounded border border-primary/10 truncate group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-all">
+              <span className="px-1.5 py-0.5 text-[8px] md:text-[9px] font-black uppercase tracking-wider bg-primary/5 text-primary/40 rounded border border-primary/10 truncate group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-all">
                 {translateExerciseTerm('equipment', exercise.equipment)}
               </span>
             )}

@@ -86,13 +86,13 @@ export default function Calendar({
         <div className="flex gap-3">
           <button 
             onClick={prevMonth}
-            className="w-11 h-11 glass-card rounded-xl flex items-center justify-center transition-all text-muted-foreground hover:text-primary hover:bg-white/5"
+            className="w-11 h-11 glass-interactive rounded-xl flex items-center justify-center transition-all text-muted-foreground hover:text-primary hover:bg-white/5"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button 
             onClick={nextMonth}
-            className="w-11 h-11 glass-card rounded-xl flex items-center justify-center transition-all text-muted-foreground hover:text-primary hover:bg-white/5"
+            className="w-11 h-11 glass-interactive rounded-xl flex items-center justify-center transition-all text-muted-foreground hover:text-primary hover:bg-white/5"
           >
             <ChevronRight className="w-5 h-5" />
           </button>

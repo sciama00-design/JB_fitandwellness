@@ -234,6 +234,7 @@ export default function ExerciseLibraryTab() {
           isOpen={!!selectedExercise}
           onClose={() => setSelectedExercise(null)}
           onDelete={handleDelete}
+          onEdit={handleEdit}
           isCoach={role === 'coach'}
         />
       )}
