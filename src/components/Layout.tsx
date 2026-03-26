@@ -168,13 +168,15 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
         <AnimatePresence>
           {!isSidebarOpen && (
             <motion.button 
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
               onClick={() => setIsSidebarOpen(true)}
-              className="fixed top-6 left-6 z-40 w-11 h-11 rounded-2xl bg-card/60 backdrop-blur-xl border border-white/5 shadow-2xl flex items-center justify-center text-primary hover:bg-primary/20 transition-all group hidden md:flex"
+              className="fixed top-6 left-6 z-40 min-w-[44px] min-h-[44px] rounded-xl bg-card border border-border shadow-lg flex items-center justify-center text-primary hover:bg-primary/10 transition-colors hidden md:flex"
+              aria-label="Apri sidebar"
             >
-              <PanelLeftOpen size={22} className="group-hover:scale-110 transition-transform" />
+              <PanelLeftOpen size={20} />
             </motion.button>
           )}
         </AnimatePresence>
@@ -182,17 +184,15 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
         {/* Mobile Athlete Menu — Vaul Drawer Bottom Sheet */}
         {activeAthlete && (
           <>
-            <AnimatePresence>
-              <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                onClick={() => setIsMobileAthleteMenuOpen(true)}
-                className="md:hidden fixed top-4 right-4 z-40 w-10 h-10 rounded-xl bg-primary/[0.08] backdrop-blur-xl border border-primary/15 shadow-xl flex items-center justify-center text-primary"
-              >
-                <Menu size={20} />
-              </motion.button>
-            </AnimatePresence>
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={() => setIsMobileAthleteMenuOpen(true)}
+              className="md:hidden fixed top-4 right-4 z-40 min-w-[44px] min-h-[44px] rounded-xl bg-card border border-border shadow-lg flex items-center justify-center text-primary active:scale-95 transition-transform"
+              aria-label="Apri menu atleta"
+            >
+              <Menu size={20} />
+            </motion.button>
 
             <VaulDrawer.Root open={isMobileAthleteMenuOpen} onOpenChange={setIsMobileAthleteMenuOpen}>
               <VaulDrawer.Portal>
@@ -230,10 +230,15 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
         )}
 
         {/* Main Content */}
-        <main
-          className="flex-1 w-full p-4 md:p-8 animate-fade-in custom-scrollbar"
-        >
-          {children || <Outlet />}
+        <main className="flex-1 w-full p-4 md:p-8 custom-scrollbar">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {children || <Outlet />}
+          </motion.div>
           {/* Padding for bottom nav on mobile */}
           <div className="h-28 md:hidden" />
         </main>

@@ -21,24 +21,30 @@ export function MobileBottomNav({ items, isVisible, role }: MobileBottomNavProps
 
     const isActiveItem = (item: NavItem) => {
         if (role === 'athlete') {
-            if (item.tabId === 'calendar') {
-                return location.pathname === '/athlete/calendar';
-            }
+            if (item.tabId === 'calendar') return location.pathname === '/athlete/calendar';
             if (item.tabId) {
-                const params = new URLSearchParams(location.search);
-                const activeTab = params.get('tab') || 'home';
-                return location.pathname === '/athlete' && activeTab === item.tabId;
+                const tab = new URLSearchParams(location.search).get('tab') || 'home';
+                return location.pathname === '/athlete' && tab === item.tabId;
             }
         }
-        return location.pathname === item.to || (item.to !== '/coach' && item.to !== '/athlete' && location.pathname.startsWith(item.to));
+        return (
+            location.pathname === item.to ||
+            (item.to !== '/coach' && item.to !== '/athlete' && location.pathname.startsWith(item.to))
+        );
     };
 
     return (
         <motion.nav
-            initial={{ y: 0 }}
-            animate={{ y: isVisible ? 0 : 100 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-            className="fixed bottom-5 left-3 right-3 z-50 flex h-[68px] items-center justify-around rounded-[1.25rem] border border-white/[0.06] bg-card/70 px-1.5 backdrop-blur-2xl backdrop-saturate-150 md:hidden shadow-[0_8px_40px_rgba(0,0,0,0.5)]"
+            initial={false}
+            animate={{ y: isVisible ? 0 : 96 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 260 }}
+            className="fixed bottom-4 left-3 right-3 z-50 md:hidden
+                       flex items-center justify-around
+                       h-[60px] rounded-2xl
+                       bg-[oklch(0.14_0.014_250/0.88)] backdrop-blur-xl
+                       border border-border/70
+                       shadow-[0_8px_32px_oklch(0,0,0,0.45)]
+                       pb-safe"
         >
             {items.map((item) => {
                 const active = isActiveItem(item);
@@ -46,33 +52,25 @@ export function MobileBottomNav({ items, isVisible, role }: MobileBottomNavProps
                     <NavLink
                         key={item.to}
                         to={item.to}
-                        className="relative h-13 flex-1 flex flex-col items-center justify-center gap-0.5 rounded-2xl transition-all duration-300"
+                        className="relative flex-1 flex flex-col items-center justify-center gap-0.5 h-full min-h-[44px]"
                     >
+                        {/* Active pill background */}
                         {active && (
                             <motion.div
-                                layoutId="activePillMobile"
-                                className="absolute inset-x-1.5 inset-y-1 rounded-xl bg-primary/[0.12] border border-primary/20"
-                                transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                                layoutId="mobile-active-pill"
+                                className="absolute inset-x-2 inset-y-1.5 rounded-xl bg-primary/12 border border-primary/20"
+                                transition={{ type: 'spring', bounce: 0.18, duration: 0.45 }}
                             />
                         )}
 
-                        {/* Active dot above icon */}
-                        <motion.div
-                            animate={{ 
-                                scale: active ? 1 : 0,
-                                opacity: active ? 1 : 0,
-                            }}
-                            transition={{ type: 'spring', bounce: 0.4, duration: 0.4 }}
-                            className="w-1 h-1 rounded-full bg-primary shadow-sm shadow-primary/40 mb-0.5"
-                        />
-
                         <item.icon className={clsx(
-                            "relative z-10 h-[18px] w-[18px] transition-all duration-300",
-                            active ? "text-primary scale-110" : "text-muted-foreground/60"
+                            'relative z-10 h-[19px] w-[19px] transition-all duration-200',
+                            active ? 'text-primary' : 'text-muted-foreground/55'
                         )} />
+
                         <span className={clsx(
-                            "relative z-10 text-[8px] font-bold uppercase tracking-[0.15em] transition-all duration-300",
-                            active ? "text-primary" : "text-muted-foreground/40"
+                            'relative z-10 text-[9px] font-bold uppercase tracking-[0.12em] transition-all duration-200',
+                            active ? 'text-primary' : 'text-muted-foreground/40'
                         )}>
                             {item.label}
                         </span>
