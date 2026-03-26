@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { skillRegistry } from "./ai/skillRegistry";
+import { geminiKeyManager } from "./geminiKeyManager";
 
 // Import raw prompts for nutritionist agent
 // @ts-ignore
@@ -19,10 +20,11 @@ import { tools as toolsPlanner } from './ai/agents/planner/skill_guided_compilat
 import promptAnalyst from './ai/agents/analyst/skill_athlete_briefing/prompt.txt?raw';
 import { tools as toolsAnalyst } from './ai/agents/analyst/skill_athlete_briefing/tools';
 
-// Note: In a production app, the API key should be stored in an environment variable
-// VITE_GEMINI_API_KEY. For now, we'll assume it's available.
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(API_KEY);
+// Use GeminiKeyManager to rotate between multiple API keys if available
+const getGenAI = () => {
+  const key = geminiKeyManager.getNextKey();
+  return key ? new GoogleGenerativeAI(key) : null;
+};
 
 export const GEMINI_MODELS = [
   'gemini-2.5-flash-lite',
@@ -35,11 +37,18 @@ export type GeminiModelType = typeof GEMINI_MODELS[number];
 
 let overrideModel: GeminiModelType = (localStorage.getItem('selected_gemini_model') as GeminiModelType) || 'gemini-2.5-flash-lite';
 
-const getModel = (options?: { model?: string, tools?: any }) => {
+const getModel = (options?: { model?: string, tools?: any, responseSchema?: any }) => {
   const modelName = options?.model || overrideModel;
+  const genAI = getGenAI();
+  if (!genAI) return null;
+  
   return genAI.getGenerativeModel({ 
     model: modelName,
-    tools: options?.tools
+    tools: options?.tools,
+    generationConfig: options?.responseSchema ? {
+      responseMimeType: "application/json",
+      responseSchema: options.responseSchema
+    } : undefined
   });
 };
 
@@ -64,9 +73,67 @@ export const buildDenseExerciseString = (ex: any) => {
   ].filter(Boolean).join(' | ');
 };
 
+const WORKOUT_SCHEMA = {
+  type: "object",
+  properties: {
+    thinking: { type: "string" },
+    plan_title: { type: "string", nullable: true },
+    plan_description: { type: "string", nullable: true },
+    action_taken: { 
+      type: "string", 
+      enum: ["append", "modify", "replace"] 
+    },
+    exercises: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string", nullable: true },
+          name: { type: "string" },
+          spoken_name: { type: "string" },
+          exercise_library_id: { type: "string", nullable: true },
+          confidence_score: { type: "number" },
+          needs_confirmation: { type: "boolean" },
+          alternatives: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" }
+              },
+              required: ["id", "name"]
+            }
+          },
+          target_sets: { type: "number" },
+          target_reps: { type: "number" },
+          target_reps_detail: {
+            type: "array",
+            items: { type: "number" }
+          },
+          is_time_based: { type: "boolean" },
+          rest_seconds: { type: "number" },
+          rest_esercizio: { type: "number" },
+          coach_notes: { type: "string", nullable: true },
+          group_name: { type: "string" },
+          group_iterations: { type: "number" },
+          is_superset: { type: "boolean" }
+        },
+        required: [
+          "name", "spoken_name", "confidence_score", "needs_confirmation", 
+          "target_sets", "target_reps", "target_reps_detail", "is_time_based", 
+          "rest_seconds", "rest_esercizio", "group_name", "group_iterations", "is_superset"
+        ]
+      }
+    }
+  },
+  required: ["thinking", "action_taken", "exercises"]
+};
+
 export const geminiService = {
   async generateEmbedding(text: string) {
-    if (!API_KEY) return null;
+    const genAI = getGenAI();
+    if (!genAI) return null;
     try {
       // Use gemini-embedding-001 with forced 768 dimensions to match DB schema
       const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
@@ -83,12 +150,11 @@ export const geminiService = {
   },
 
   async generateStrategicAdvice(athleteData: any, workoutData: any) {
-    if (!API_KEY) {
-      console.warn("Gemini API Key missing. Skipping strategic advice.");
+    const model = getModel();
+    if (!model) {
+      console.warn("Gemini API Key missing or rotation failed. Skipping strategic advice.");
       return null;
     }
-
-    const model = getModel();
 
     const context = getTodayContext();
     const prompt = `
@@ -133,9 +199,8 @@ export const geminiService = {
   },
 
   async suggestRecipesForMeal(targetMacros: { kcal: number, protein: number, carbs: number, fat: number }, ppreferences: string = "") {
-    if (!API_KEY) return null;
-
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       Suggerisci 3 idee di pasti veloci che rispettino circa questi macro:
@@ -159,9 +224,8 @@ export const geminiService = {
   },
 
   async generateMealPlan(coachGuidelines: string | null, targetMacros: any, athletePreferences: any) {
-    if (!API_KEY) return null;
-
     const model = getModel();
+    if (!model) return null;
 
     const context = getTodayContext();
     const prompt = `
@@ -220,9 +284,8 @@ export const geminiService = {
   },
 
   async regenerateMeal(mealName: string, targetMealMacros: any, constraints: any, reason: string) {
-    if (!API_KEY) return null;
-
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       ### OBIETTIVO
@@ -260,8 +323,8 @@ export const geminiService = {
   },
 
   async generateNutritionEnrichment(dietPlan: any, profile: any, workoutPlan: any) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       Sei un nutrizionista esperto. Arricchisci il seguente piano alimentare spiegando come si adatta alle preferenze dell'atleta e al suo allenamento.
@@ -283,7 +346,7 @@ export const geminiService = {
   },
 
   async generateAthleteBriefing(athleteProfile: any, dietPlan: any, workoutPlan: any, _recentLogs: any) {
-    if (!API_KEY) return null;
+    if (!geminiKeyManager.hasKeys()) return null;
     
     const athleteId = athleteProfile.id;
     const today = getTodayContext();
@@ -316,8 +379,8 @@ export const geminiService = {
   },
 
   async generateWeeklyOptimization(weekEntries: any[], dietPlan: any, activeWorkout: any, profile: any) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const context = getTodayContext();
     const prompt = `
@@ -359,8 +422,8 @@ export const geminiService = {
   },
 
   async generateRecipe(targetKcal: number, preferences: any) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       Genera una ricetta fitness di circa ${targetKcal} kcal.
@@ -391,7 +454,7 @@ export const geminiService = {
   },
 
   async runAgentSkill(agentName: string, skillName: string, systemPrompt: string, userMessage: string, skillTools: any) {
-    if (!API_KEY) return null;
+    if (!geminiKeyManager.hasKeys()) return null;
 
     const functionDeclarations = Object.values(skillTools).map((t: any) => ({
       name: t.name,
@@ -402,6 +465,8 @@ export const geminiService = {
     const model = getModel({ 
       tools: [{ functionDeclarations }] as any
     });
+
+    if (!model) return null;
 
     const chat = model.startChat();
     // Inseriamo il prompt di sistema come primo messaggio o istruzione
@@ -492,8 +557,8 @@ export const geminiService = {
   },
 
   async transcribeAudio(audioBase64: string) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `Trascrivi fedelmente questo audio in italiano. Rispondi SOLO con la trascrizione testuale, senza commenti o altro.`;
     
@@ -512,7 +577,7 @@ export const geminiService = {
 
 
   async processWorkoutAudio(audioBase64: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string, planTitle?: string, planDescription?: string) {
-    if (!API_KEY) return null;
+    if (!geminiKeyManager.hasKeys()) return null;
     
     const transcription = await this.transcribeAudio(audioBase64);
 
@@ -526,12 +591,12 @@ export const geminiService = {
   },
 
   async processWorkoutInstructions(instructions: string, existingMappings: any[], currentPlan: any[] = [], preferences: any[] = [], coachId?: string, planTitle?: string, planDescription?: string) {
-    if (!API_KEY) return null;
-    const model = getModel();
-
     // 1. EXTRACT EXERCISE NAMES (Pre-analysis)
     let extractedNames: string[] = [];
     try {
+      const model = getModel();
+      if (!model) return null;
+
       const extractionPrompt = `
         Analizza queste istruzioni di allenamento: "${instructions}"
         Estrai SOLO i nomi degli esercizi menzionati (es. "panca piana", "squat", "plank").
@@ -564,6 +629,7 @@ export const geminiService = {
       
       await Promise.all(extractedNames.map(async (name) => {
         const nameEmbedding = await this.generateEmbedding(name);
+        if (!nameEmbedding) return;
         const results = await exerciseService.searchExercises(name, nameEmbedding, coachId, 0.25, 5);
         allSimilarExercises.push(...results);
       }));
@@ -587,7 +653,8 @@ export const geminiService = {
           }
         });
 
-        const finalExercises = Array.from(finalMap.values()).sort((a,b) => b.similarity - a.similarity).slice(0, 30);
+        // Limit results to keep context manageable
+        const finalExercises = Array.from(finalMap.values()).sort((a,b) => b.similarity - a.similarity).slice(0, 15);
         searchContext = finalExercises.map((ex: any) => 
           `- ${ex.name_it || ex.name} (ID: ${ex.id}) [Muscoli: ${ex.muscle_group}, Attrezzatura: ${ex.equipment}]${ex.coach_id === coachId ? ' [CUSTOM COACH]' : ''}`
         ).join('\n');
@@ -610,6 +677,22 @@ export const geminiService = {
         })))
       : "La scheda è attualmente VUOTA.";
     
+    // 3. INTELLIGENT MODEL SELECTION
+    let selectedModel = overrideModel;
+    const complexityScore = (instructions.length / 500) + (allSimilarExercises.length / 10);
+    if (complexityScore > 1.5 && overrideModel.includes('lite')) {
+      const betterModel = GEMINI_MODELS.find(m => !m.includes('lite') && !m.includes('preview'));
+      if (betterModel) selectedModel = betterModel;
+      console.log(`Switching to robust model: ${selectedModel} (complexity: ${complexityScore.toFixed(1)})`);
+    }
+
+    const model = getModel({ 
+      model: selectedModel,
+      // @ts-ignore
+      responseSchema: WORKOUT_SCHEMA 
+    });
+    if (!model) return null;
+
     const prompt = `
       ### RUOLO
       Sei l'Assistente AI di un elite coach di fitness. Il tuo compito è tradurre le istruzioni del coach in una scheda di allenamento strutturata, mappando gli esercizi alla LIBRERIA ufficiale.
@@ -660,34 +743,7 @@ export const geminiService = {
          - Inserisci in 'coach_notes' info come RPE, carichi suggeriti, fermi isometrici, ecc. Se il coach ha dettato ripetizioni complesse, scrivile anche qui in formato testuale leggibile.
 
       ### OUTPUT FORMAT
-      Rispondi ESCLUSIVAMENTE con un JSON valido.
-      {
-        "thinking": "Dettagliata spiegazione della strategia di mapping e interpretazione...",
-        "plan_title": "Nuovo titolo se applicabile, altrimenti null",
-        "plan_description": "Nuova descrizione se applicabile, altrimenti null",
-        "action_taken": "append" | "modify" | "replace",
-        "exercises": [
-          {
-            "id": "uuid_se_modifica_altrimenti_null",
-            "name": "Nome Ufficiale Libreria o Nome Originale se incerto",
-            "spoken_name": "Nome usato dal coach",
-            "exercise_library_id": "uuid_lib_o_null",
-            "confidence_score": 0.95,
-            "needs_confirmation": false,
-            "alternatives": [{"id": "uuid", "name": "Nome"}],
-            "target_sets": 3,
-            "target_reps": 10,
-            "target_reps_detail": [10, 10, 10],
-            "is_time_based": false,
-            "rest_seconds": 60,
-            "rest_esercizio": 0,
-            "coach_notes": "...",
-            "group_name": "...",
-            "group_iterations": 1,
-            "is_superset": false
-          }
-        ]
-      }
+      Rispondi ESCLUSIVAMENTE con un JSON valido che rispetti lo schema richiesto.
     `;
 
     try {
@@ -710,8 +766,8 @@ export const geminiService = {
   },
 
   async extractPreferenceEssence(audioBase64: string) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       ### RUOLO
@@ -750,8 +806,8 @@ export const geminiService = {
   },
 
   async structureNutritionalDirectives(rawText: string, athleteContext: { weight?: number, targetKcal?: number, macros?: any, preferences?: string[], intolerances?: string[], dislikedFoods?: string[] }) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       ### RUOLO
@@ -806,8 +862,8 @@ export const geminiService = {
   },
 
   async chatDietDirectives(currentMd: string, userMessage: string, athleteContext: { weight?: number, targetKcal?: number, macros?: any }) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       ### RUOLO
@@ -838,8 +894,8 @@ export const geminiService = {
     }
   },
   async structureFocusObjectives(rawText: string, athleteContext: { first_name?: string, last_name?: string, weight?: number, height?: number, age?: number, gender?: string }) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       ### RUOLO
@@ -882,8 +938,8 @@ export const geminiService = {
   },
 
   async chatFocusObjectives(currentMd: string, userMessage: string, athleteContext: any) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     const prompt = `
       ### RUOLO
@@ -921,8 +977,8 @@ export const geminiService = {
     history: { role: 'user' | 'model'; parts: { text: string }[] }[];
     mission: 'BIOMETRICS' | 'EXPERIENCE' | 'GOALS' | 'PHILOSOPHY';
   }) {
-    if (!API_KEY) return null;
     const model = getModel();
+    if (!model) return null;
 
     let userText = params.message || '';
     if (params.audioBase64) {
