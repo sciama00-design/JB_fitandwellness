@@ -11,7 +11,7 @@ interface ExerciseFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   exercise?: ExerciseLibrary | null;
-  onSuccess: () => void;
+  onSuccess: (exercise: ExerciseLibrary) => void;
 }
 
 export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess }: ExerciseFormModalProps) {
@@ -79,10 +79,11 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           JSON.stringify(formData.video_urls || []) !== JSON.stringify(exercise.video_urls || []) ||
           JSON.stringify(formData.images || []) !== JSON.stringify(exercise.images || []);
 
+        let result: ExerciseLibrary;
         if (isSystemExercise && hasMediaChanged) {
           // Create a personal fork
           const { id, created_at, ...forkData } = formData;
-          await exerciseService.createExercise({
+          result = await exerciseService.createExercise({
             ...forkData,
             coach_id: user?.id,
             forked_from: exercise.id
@@ -90,17 +91,18 @@ export default function ExerciseFormModal({ isOpen, onClose, exercise, onSuccess
           toast.success('Creato duplicato personale con i nuovi media');
         } else {
           // Direct update (Global for system text, or personal for personal exercises)
-          await exerciseService.updateExercise(exercise.id, formData);
+          result = await exerciseService.updateExercise(exercise.id, formData);
           toast.success('Esercizio aggiornato');
         }
+        onSuccess(result);
       } else {
-        await exerciseService.createExercise({
+        const result = await exerciseService.createExercise({
           ...formData,
           coach_id: user?.id
         });
         toast.success('Esercizio creato');
+        onSuccess(result);
       }
-      onSuccess();
       onClose();
     } catch (error: any) {
       console.error(error);

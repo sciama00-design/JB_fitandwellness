@@ -4,16 +4,17 @@ import {
   Plus, Trash2, Save, GripVertical, 
   Link as LinkIcon, Unlink, Loader2, ChevronRight,
   Info, LayoutGrid, Flame, Pencil, Eye, Check, X, MessageSquare,
-  ClipboardList, Tv, Sparkles, ArrowLeft
+  ClipboardList, Tv, Sparkles, ArrowLeft, BrainCircuit
 } from 'lucide-react';
 import ExerciseDetailModal from '../ExerciseDetailModal';
 import { MediaViewer } from '../shared/MediaViewer';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import ReactMarkdown from 'react-markdown';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../lib/auth';
 import type { WorkoutPlan, PlanExercise, ExerciseLibrary, Profile, WorkoutPlanTemplate, PlanTemplateExercise } from '../../types/database';
 import { exerciseService } from '../../services/exerciseService';
+import { geminiService } from '../../services/geminiService';
 import { useAthleteNavigation } from '../../context/AthleteNavigationContext';
 import Modal from '../Modal';
 import AdvancedExerciseFilters from '../ExerciseFilters';
@@ -21,6 +22,7 @@ import { cn } from '../../lib/utils';
 import WorkoutChatCompiler from './WorkoutChatCompiler';
 import { mappingService } from '../../services/mappingService';
 import { coachPreferenceService } from '../../services/coachPreferenceService';
+import ExerciseFormModal from './ExerciseFormModal';
 
 interface WorkoutPlanEditorProps {
   initialData?: (WorkoutPlan & { exercises: PlanExercise[] }) | (WorkoutPlanTemplate & { exercises: PlanTemplateExercise[] });
@@ -41,6 +43,7 @@ export default function WorkoutPlanEditor({
   isTemplate = false,
   onBack
 }: WorkoutPlanEditorProps) {
+  const queryClient = useQueryClient();
   const [planName, setPlanName] = useState(initialData?.name || '');
   const [athleteId, setAthleteId] = useState((initialData as WorkoutPlan)?.athlete_id || '');
   const [description, setDescription] = useState(initialData?.description || '');
@@ -55,10 +58,13 @@ export default function WorkoutPlanEditor({
   const [isNamingGroup, setIsNamingGroup] = useState(false);
   const [tempGroupName, setTempGroupName] = useState('');
   const [pendingGroupName, setPendingGroupName] = useState('');
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [renamingGroupName, setRenamingGroupName] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [editingExerciseIndex, setEditingExerciseIndex] = useState<number | null>(null);
   const [activeMobileTab, setActiveMobileTab] = useState<'info' | 'groups'>('groups');
+  const [isExerciseFormOpen, setIsExerciseFormOpen] = useState(false);
   
   const storageKey = useMemo(() => {
     const id = initialData?.id || 'new';
@@ -403,6 +409,21 @@ export default function WorkoutPlanEditor({
       setActiveGroupId(null);
       setPendingGroupName('');
     }
+  };
+
+  const handleRenameGroup = (groupId: string, newName: string) => {
+    if (!newName.trim()) return;
+    
+    setExercises(exercises.map(ex => 
+      ex.group_id === groupId ? { ...ex, group_name: newName } : ex
+    ));
+    
+    if (activeGroupId === groupId) {
+      setPendingGroupName(newName);
+    }
+    
+    setRenamingGroupId(null);
+    setRenamingGroupName('');
   };
 
   const updateGroupIterations = (groupId: string, iterations: number) => {
@@ -755,7 +776,49 @@ export default function WorkoutPlanEditor({
                                       <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                      <span className="font-bold text-foreground block text-base sm:text-lg group-hover:text-primary/80 transition-colors uppercase tracking-tight italic truncate">{group.name}</span>
+                                      {renamingGroupId === group.id ? (
+                                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                                          <input 
+                                            autoFocus
+                                            type="text"
+                                            className={cn(inputClasses, "py-1.5")}
+                                            value={renamingGroupName}
+                                            onChange={(e) => setRenamingGroupName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') handleRenameGroup(group.id, renamingGroupName);
+                                              if (e.key === 'Escape') setRenamingGroupId(null);
+                                            }}
+                                          />
+                                          <button 
+                                            onClick={() => handleRenameGroup(group.id, renamingGroupName)}
+                                            className="p-1.5 bg-primary/20 text-primary rounded-lg hover:bg-primary/30 transition-all"
+                                          >
+                                            <Check className="w-4 h-4" />
+                                          </button>
+                                          <button 
+                                            onClick={() => setRenamingGroupId(null)}
+                                            className="p-1.5 bg-white/5 text-muted-foreground/40 rounded-lg hover:bg-white/10 transition-all"
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-2 group/title">
+                                          <span className="font-bold text-foreground block text-base sm:text-lg group-hover:text-primary/80 transition-colors uppercase tracking-tight italic truncate">
+                                            {group.name}
+                                          </span>
+                                          <button 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setRenamingGroupId(group.id);
+                                              setRenamingGroupName(group.name);
+                                            }}
+                                            className="p-1.5 text-muted-foreground/20 hover:text-primary hover:bg-primary/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
                                       <div className="flex items-center gap-3 mt-1">
                                         <span className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-wider">{group.exerciseCount} esercizi</span>
                                         <div className="w-1 h-1 rounded-full bg-white/[0.06]" />
@@ -830,7 +893,51 @@ export default function WorkoutPlanEditor({
                       <X className="w-5 h-5" />
                     </button>
                     <h2 className="text-xl font-black text-foreground flex items-center gap-3">
-                      {activeGroupName}
+                      {renamingGroupId === activeGroupId ? (
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            autoFocus
+                            type="text"
+                            className={cn(inputClasses, "py-1.5 text-base sm:text-lg w-48 sm:w-64")}
+                            value={renamingGroupName}
+                            onChange={(e) => setRenamingGroupName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleRenameGroup(activeGroupId!, renamingGroupName);
+                              if (e.key === 'Escape') setRenamingGroupId(null);
+                            }}
+                          />
+                          <button 
+                            onClick={() => handleRenameGroup(activeGroupId!, renamingGroupName)}
+                            className="p-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => setRenamingGroupId(null)}
+                            className="p-2 bg-white/10 text-muted-foreground/60 rounded-xl hover:bg-white/20 transition-all"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 group/title">
+                          <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => {
+                            setRenamingGroupId(activeGroupId);
+                            setRenamingGroupName(activeGroupName);
+                          }}>
+                            {activeGroupName}
+                          </span>
+                          <button 
+                            onClick={() => {
+                              setRenamingGroupId(activeGroupId);
+                              setRenamingGroupName(activeGroupName);
+                            }}
+                            className="p-1.5 text-muted-foreground/20 hover:text-primary hover:bg-primary/10 rounded-lg transition-all opacity-0 group-hover/title:opacity-100"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                       <span className={cn(
                         "px-2.5 py-0.5 rounded-full text-xs font-bold",
                         isEdit ? "bg-amber-500/20 text-amber-400" : "bg-violet-500/20 text-violet-400"
@@ -934,8 +1041,25 @@ export default function WorkoutPlanEditor({
         onClose={() => setIsSelectModalOpen(false)}
         title="Seleziona Esercizio"
       >
-        <ExerciseSelector onSelect={addExercise} onInfo={(ex) => setSelectedExerciseInfo(ex)} />
+        <ExerciseSelector 
+          onSelect={addExercise} 
+          onInfo={(ex) => setSelectedExerciseInfo(ex)} 
+          onCreate={() => {
+            setIsSelectModalOpen(false);
+            setIsExerciseFormOpen(true);
+          }}
+        />
       </Modal>
+
+      <ExerciseFormModal 
+        isOpen={isExerciseFormOpen}
+        onClose={() => setIsExerciseFormOpen(false)}
+        exercise={null}
+        onSuccess={(newEx) => {
+          queryClient.invalidateQueries({ queryKey: ['exercises'] });
+          addExercise(newEx);
+        }}
+      />
 
       <AnimatePresence>
         {selectedExerciseInfo && (
@@ -981,21 +1105,9 @@ export default function WorkoutPlanEditor({
           planDescription={description}
         />
       </motion.div>
-
-      <Modal
-        isOpen={isSelectModalOpen}
-        onClose={() => setIsSelectModalOpen(false)}
-        title="Seleziona Esercizio"
-      >
-        <ExerciseSelector 
-          onSelect={addExercise}
-          onInfo={(ex) => setSelectedExerciseInfo(ex)}
-        />
-      </Modal>
     </div>
   );
 }
-
 interface ExerciseItemProps {
   ex: Partial<PlanExercise>;
   index: number;
@@ -1383,12 +1495,34 @@ function ExerciseItem({
   );
 }
 
-function ExerciseSelector({ onSelect, onInfo }: { onSelect: (ex: ExerciseLibrary) => void; onInfo: (ex: ExerciseLibrary) => void }) {
+function ExerciseSelector({ 
+  onSelect, 
+  onInfo, 
+  onCreate 
+}: { 
+  onSelect: (ex: ExerciseLibrary) => void; 
+  onInfo: (ex: ExerciseLibrary) => void;
+  onCreate: () => void;
+}) {
   const { user } = useAuth();
   const [filtered, setFiltered] = useState<ExerciseLibrary[]>([]);
+  const [rawFilters, setRawFilters] = useState<any>(null);
+
   const { data: exercises, isLoading } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: exerciseService.getAllExercises,
+    queryKey: ['exercises', rawFilters?.searchTerm],
+    queryFn: async () => {
+      if (!rawFilters?.searchTerm) {
+        return exerciseService.getAllExercises();
+      }
+      
+      try {
+        const embedding = await geminiService.generateEmbedding(rawFilters.searchTerm);
+        return await exerciseService.searchExercises(rawFilters.searchTerm, embedding, user?.id);
+      } catch (err) {
+        console.error("Semantic search failed:", err);
+        return await exerciseService.searchExercises(rawFilters.searchTerm, null, user?.id);
+      }
+    },
   });
 
   const [visibleCount, setVisibleCount] = useState(20);
@@ -1410,13 +1544,26 @@ function ExerciseSelector({ onSelect, onInfo }: { onSelect: (ex: ExerciseLibrary
 
   return (
     <div className="space-y-6 max-h-[70vh] flex flex-col">
-      <div className="relative z-10 shrink-0">
-        <AdvancedExerciseFilters 
-          exercises={exercises || []} 
-          onFilterChange={setFiltered}
-          userId={user?.id}
-          compact
-        />
+      <div className="relative z-10 shrink-0 flex items-center gap-3">
+        <div className="flex-1">
+          <AdvancedExerciseFilters 
+            exercises={exercises || []} 
+            onFilterChange={setFiltered}
+            onRawFiltersChange={setRawFilters}
+            userId={user?.id}
+            compact
+          />
+        </div>
+        {onCreate && (
+          <button 
+            onClick={onCreate}
+            className="h-10 px-4 bg-primary/[0.08] border border-primary/20 text-primary rounded-xl font-bold text-[10px] sm:text-xs flex items-center gap-2 hover:bg-primary/15 transition-all shrink-0"
+            title="Crea nuovo esercizio"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Nuovo</span>
+          </button>
+        )}
       </div>
       
       {isLoading ? (
@@ -1441,7 +1588,14 @@ function ExerciseSelector({ onSelect, onInfo }: { onSelect: (ex: ExerciseLibrary
                     {ex.muscle_group?.[0]?.toUpperCase() || '?'}
                   </div>
                   <div>
-                    <span className="font-bold text-foreground block text-base group-hover:text-primary/80 transition-colors">{ex.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-foreground block text-base group-hover:text-primary/80 transition-colors">
+                        {ex.name_it || ex.name}
+                      </span>
+                      {rawFilters?.searchTerm && (
+                        <BrainCircuit className="w-3 h-3 text-indigo-400 animate-pulse" />
+                      )}
+                    </div>
                     <span className="text-[10px] text-muted-foreground/40 uppercase font-black tracking-widest flex items-center gap-2">
                       {ex.muscle_group || 'Corpo libero'}
                       {ex.equipment && <span className="w-1 h-1 bg-white/[0.08] rounded-full" />}

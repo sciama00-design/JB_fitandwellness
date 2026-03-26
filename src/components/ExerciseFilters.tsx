@@ -16,11 +16,12 @@ export interface ExerciseFilters {
 interface Props {
   exercises: ExerciseLibrary[];
   onFilterChange: (filtered: ExerciseLibrary[]) => void;
+  onRawFiltersChange?: (filters: ExerciseFilters) => void;
   userId?: string;
   compact?: boolean;
 }
 
-export default function AdvancedExerciseFilters({ exercises, onFilterChange, userId, compact = false }: Props) {
+export default function AdvancedExerciseFilters({ exercises, onFilterChange, onRawFiltersChange, userId, compact = false }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [filters, setFilters] = useState<ExerciseFilters>({
     searchTerm: '',
@@ -44,7 +45,8 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
   // Calculate filtering logic in useMemo
   const filteredExercises = useMemo(() => {
     return exercises.filter(exercise => {
-      const matchesSearch = !filters.searchTerm || 
+      // If parent handles search, we don't filter by search term here
+      const matchesSearch = onRawFiltersChange || !filters.searchTerm || 
         exercise.name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
         exercise.name_it?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
         exercise.description?.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
@@ -73,7 +75,12 @@ export default function AdvancedExerciseFilters({ exercises, onFilterChange, use
   // Sync filtered exercises with parent
   useEffect(() => {
     onFilterChange(filteredExercises);
-  }, [filteredExercises, onFilterChange]);
+  }, [filteredExercises]);
+
+  // Sync raw filters with parent
+  useEffect(() => {
+    onRawFiltersChange?.(filters);
+  }, [filters, onRawFiltersChange]);
 
   const toggleFilter = (category: keyof ExerciseFilters, value: string) => {
     setFilters(prev => {

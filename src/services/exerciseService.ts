@@ -51,56 +51,83 @@ export const exerciseService = {
   },
 
   async searchSimilarExercises(embedding: number[], threshold: number = 0.5, limit: number = 10) {
-    const { data, error } = await supabase.rpc('match_exercises', {
+    const { data: matches, error } = await supabase.rpc('match_exercises', {
       query_embedding: embedding,
       match_threshold: threshold,
       match_count: limit,
     });
     if (error) throw error;
-    return data;
+    if (!matches || matches.length === 0) return [];
+
+    // Fetch full data for these IDs to ensure we have all columns (coach_id, images, etc.)
+    const ids = matches.map((m: any) => m.id);
+    const { data: fullExercises, error: fetchError } = await supabase
+      .from('exercise_library')
+      .select('*')
+      .in('id', ids);
+
+    if (fetchError) throw fetchError;
+
+    // Merge similarity back into full exercise objects
+    return matches.map((m: any) => {
+      const full = fullExercises?.find(f => f.id === m.id);
+      return {
+        ...full,
+        similarity: m.similarity
+      };
+    }).filter((ex: any) => !!ex?.id); // Guard against missing records
   },
 
-  async searchExercises(query: string, embedding?: number[] | null, _coachId?: string, threshold: number = 0.25, limit: number = 20) {
-    // 1. Text-based search (Keywords AND logic)
-    const keywords = query.split(/\s+/).filter(w => w.length > 1);
+  async searchExercises(query: string, embedding?: number[] | null, coachId?: string, threshold: number = 0.25, limit: number = 20) {
+    if (!query || query.trim().length === 0) {
+      return this.getAllExercises();
+    }
+
+    const cleanQuery = query.trim().toLowerCase();
+    const keywords = cleanQuery.split(/\s+/).filter(w => w.length > 1);
     
+    // 1. Text-based search (Keywords AND logic)
     let textQuery = supabase
       .from('exercise_library')
-      .select('id, name, name_it, muscle_group, equipment, coach_id, forked_from');
+      .select('*');
 
     if (keywords.length > 0) {
-      // Per ogni parola chiave, aggiungiamo un filtro .or() che deve essere soddisfatto (AND tra i vari .or)
+      // Per ogni parola chiave, aggiungiamo un filtro .or()
+      // Nota: Multiple .or() su Supabase JS agiscono come AND tra di loro
       keywords.forEach(w => {
         textQuery = textQuery.or(`name.ilike.%${w}%,name_it.ilike.%${w}%`);
       });
     } else {
-      textQuery = textQuery.or(`name.ilike.%${query}%,name_it.ilike.%${query}%`);
+      textQuery = textQuery.or(`name.ilike.%${cleanQuery}%,name_it.ilike.%${cleanQuery}%`);
+    }
+
+    // Filter by coach if needed (show personal + global)
+    if (coachId) {
+      textQuery = textQuery.or(`coach_id.is.null,coach_id.eq.${coachId}`);
     }
 
     const { data: textMatches, error: textError } = await textQuery.limit(50);
-
-
-
-
-
     if (textError) throw textError;
 
     // 2. Vector-based search (if embedding is provided)
     let vectorMatches: any[] = [];
     if (embedding) {
       vectorMatches = await this.searchSimilarExercises(embedding, threshold, limit);
+      // Filter vector matches by coach if needed
+      if (coachId) {
+        vectorMatches = vectorMatches.filter(ex => !ex.coach_id || ex.coach_id === coachId);
+      }
     }
 
     // 3. Merge and Deduplicate
     const resultsMap = new Map<string, any>();
 
     // Add text matches first with high pseudo-similarity (1.0 for exact, 0.9 for partial)
-    textMatches?.forEach(ex => {
+    textMatches?.forEach((ex: any) => {
       const nameLower = ex.name.toLowerCase();
       const itLower = ex.name_it?.toLowerCase() || '';
-      const qLower = query.toLowerCase();
 
-      const isExact = nameLower === qLower || itLower === qLower;
+      const isExact = nameLower === cleanQuery || itLower === cleanQuery;
       
       // Smart check for plural/singular (more flexible)
       const checkPlural = (a: string, b: string) => {
@@ -108,36 +135,56 @@ export const exerciseService = {
         const hi = a.length < b.length ? b : a;
         if (hi.startsWith(lo)) {
           const rest = hi.substring(lo.length);
-          return rest === 's' || rest === 'es';
+          return rest === 's' || rest === 'es' || rest === 'i' || rest === 'e'; // Added Italian plurals
         }
         return false;
       };
 
-      const isPluralVariation = checkPlural(nameLower, qLower) || checkPlural(itLower, qLower);
+      const isPluralVariation = checkPlural(nameLower, cleanQuery) || checkPlural(itLower, cleanQuery);
+      
+      // Boost for keyword match
+      let similarity = isExact ? 1.0 : (isPluralVariation ? 0.98 : 0.92);
+      
+      // Bonus if it's a personal exercise
+      if (coachId && ex.coach_id === coachId) {
+        similarity += 0.05;
+      }
 
       resultsMap.set(ex.id, {
         ...ex,
-        similarity: isExact ? 1.0 : (isPluralVariation ? 0.98 : 0.9)
+        similarity
       });
     });
 
-
-
     // Add/Update with vector matches
     vectorMatches.forEach(ex => {
-      if (!resultsMap.has(ex.id)) {
+      const existing = resultsMap.get(ex.id);
+      if (!existing) {
         resultsMap.set(ex.id, ex);
       } else {
-        // If it's already there (from text search), maybe update similarity if vector is higher?
-        // Actually, text match is usually more intent-aligned for specific names.
-        const existing = resultsMap.get(ex.id);
-        if (ex.similarity > existing.similarity) {
-          resultsMap.set(ex.id, { ...existing, similarity: ex.similarity });
-        }
+        // If it's already there, use the best score
+        const bestSim = Math.max(existing.similarity, ex.similarity);
+        resultsMap.set(ex.id, { ...existing, similarity: bestSim });
       }
     });
 
-    return Array.from(resultsMap.values()).sort((a, b) => b.similarity - a.similarity);
+    // Final sorting and formatting
+    const finalResults = Array.from(resultsMap.values())
+      .sort((a, b) => b.similarity - a.similarity);
+
+    // Filter out system exercises if a personal fork of the SAME exercise is in the results
+    const personalForkedIds = new Set(
+      finalResults
+        .filter(ex => ex.coach_id === coachId && ex.forked_from)
+        .map(ex => ex.forked_from)
+    );
+
+    return finalResults.filter((ex: any) => {
+      if (ex.coach_id === null && personalForkedIds.has(ex.id)) {
+        return false;
+      }
+      return true;
+    }).slice(0, limit);
   }
 };
 

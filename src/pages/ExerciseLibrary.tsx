@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { exerciseService } from '../services/exerciseService';
-import { Plus, Loader2, Sparkles, Search, X, ClipboardList } from 'lucide-react';
+import { geminiService } from '../services/geminiService';
+import { Plus, Loader2, Sparkles, Search, X, ClipboardList, BrainCircuit } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ExerciseCard from '../components/ExerciseCard';
-import AdvancedExerciseFilters from '../components/ExerciseFilters';
+import AdvancedExerciseFilters, { type ExerciseFilters as FilterType } from '../components/ExerciseFilters';
 import ExerciseDetailModal from '../components/ExerciseDetailModal';
 import { useAuth } from '../lib/auth';
 import type { ExerciseLibrary as ExerciseType } from '../types/database';
@@ -13,10 +14,24 @@ export default function ExerciseLibrary() {
   const { user, role } = useAuth();
   const [filteredExercises, setFilteredExercises] = useState<ExerciseType[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<ExerciseType | null>(null);
+  const [rawFilters, setRawFilters] = useState<FilterType | null>(null);
 
   const { data: exercises, isLoading, isError, error } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: exerciseService.getAllExercises,
+    queryKey: ['exercises', rawFilters?.searchTerm],
+    queryFn: async () => {
+      if (!rawFilters?.searchTerm) {
+        return exerciseService.getAllExercises();
+      }
+      
+      // Perform semantic search
+      try {
+        const embedding = await geminiService.generateEmbedding(rawFilters.searchTerm);
+        return await exerciseService.searchExercises(rawFilters.searchTerm, embedding, user?.id);
+      } catch (err) {
+        console.error("Semantic search failed, falling back to basic search:", err);
+        return await exerciseService.searchExercises(rawFilters.searchTerm, null, user?.id);
+      }
+    },
   });
 
   const emptyExercises = useMemo(() => [] as ExerciseType[], []);
@@ -99,6 +114,7 @@ export default function ExerciseLibrary() {
         <AdvancedExerciseFilters 
           exercises={exercises || emptyExercises} 
           onFilterChange={setFilteredExercises}
+          onRawFiltersChange={setRawFilters}
           userId={user?.id || undefined}
         />
       </div>
@@ -107,6 +123,12 @@ export default function ExerciseLibrary() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
             Risultati
+            {rawFilters?.searchTerm && (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 rounded-md text-[10px] text-indigo-400 font-bold uppercase tracking-wider animate-pulse">
+                <BrainCircuit className="w-3 h-3" />
+                AI Enhanced
+              </span>
+            )}
             <span className="text-slate-500 font-normal text-sm">({filteredExercises.length})</span>
           </h2>
         </div>

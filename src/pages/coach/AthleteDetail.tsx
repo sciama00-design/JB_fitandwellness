@@ -152,6 +152,18 @@ export default function AthleteDetail() {
     },
   });
 
+  const togglePlanActiveMutation = useMutation({
+    mutationFn: ({ planId, active }: { planId: string, active: boolean }) => 
+      planService.updatePlanStatus(planId, active),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['athlete-detail', id] });
+      toast.success(variables.active ? 'Scheda attivata' : 'Scheda disattivata');
+    },
+    onError: () => {
+      toast.error('Errore durante l\'aggiornamento della scheda');
+    }
+  });
+
   const handleDeletePlan = async (e: React.MouseEvent, planId: string, planName: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -316,15 +328,48 @@ export default function AthleteDetail() {
                     <div className="relative z-10 space-y-4">
                       <div className="flex items-start justify-between">
                         <div>
-                          <div className="flex items-center gap-2 mb-1.5">
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
                             <span className="text-[10px] text-muted-foreground/35 font-medium">{new Date(plan.created_at).toLocaleDateString('it-IT')}</span>
-                            {plan.active && (
-                              <span className="px-2 py-0.5 bg-primary/15 text-primary text-[9px] font-bold rounded-md border border-primary/20">ATTIVO</span>
-                            )}
+                            
+                            <div className="flex items-center gap-2">
+                              <span className={clsx(
+                                "text-[9px] font-bold transition-colors",
+                                plan.active ? "text-primary" : "text-muted-foreground/30"
+                              )}>
+                                {plan.active ? 'ATTIVA' : 'INATTIVA'}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  togglePlanActiveMutation.mutate({ planId: plan.id, active: !plan.active });
+                                }}
+                                disabled={togglePlanActiveMutation.isPending}
+                                className={clsx(
+                                  "relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-primary focus:ring-offset-1 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50",
+                                  plan.active ? "bg-primary" : "bg-white/[0.08]"
+                                )}
+                              >
+                                <span
+                                  className={clsx(
+                                    "pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                    plan.active ? "translate-x-4" : "translate-x-0"
+                                  )}
+                                />
+                              </button>
+                            </div>
                           </div>
-                          <h4 className="text-[17px] font-bold text-foreground tracking-tight">{plan.name}</h4>
+                          <h4 className={clsx(
+                            "text-[17px] font-bold tracking-tight transition-opacity",
+                            !plan.active && "opacity-40"
+                          )}>
+                            {plan.name}
+                          </h4>
                           {plan.description && (
-                            <p className="mt-1 text-[12px] text-muted-foreground/50 font-medium line-clamp-2 max-w-[85%]">
+                            <p className={clsx(
+                              "mt-1 text-[12px] font-medium line-clamp-2 max-w-[85%] transition-opacity",
+                              plan.active ? "text-muted-foreground/50" : "text-muted-foreground/20"
+                            )}>
                               {plan.description}
                             </p>
                           )}

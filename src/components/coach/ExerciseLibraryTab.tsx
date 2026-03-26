@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { exerciseService } from '../../services/exerciseService';
-import { Plus, Loader2, Search, X, Activity } from 'lucide-react';
+import { geminiService } from '../../services/geminiService';
+import { Plus, Loader2, Search, X, Activity, BrainCircuit } from 'lucide-react';
 import ExerciseCard from '../ExerciseCard';
-import AdvancedExerciseFilters from '../ExerciseFilters';
+import AdvancedExerciseFilters, { type ExerciseFilters as FilterType } from '../ExerciseFilters';
 import ExerciseDetailModal from '../ExerciseDetailModal';
 import ExerciseFormModal from './ExerciseFormModal';
 import { useAuth } from '../../lib/auth';
@@ -19,10 +20,23 @@ export default function ExerciseLibraryTab() {
   const [selectedExercise, setSelectedExercise] = useState<ExerciseType | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<ExerciseType | null>(null);
+  const [rawFilters, setRawFilters] = useState<FilterType | null>(null);
 
   const { data: exercises, isLoading, isError } = useQuery({
-    queryKey: ['exercises'],
-    queryFn: exerciseService.getAllExercises,
+    queryKey: ['exercises', rawFilters?.searchTerm],
+    queryFn: async () => {
+      if (!rawFilters?.searchTerm) {
+        return exerciseService.getAllExercises();
+      }
+      
+      try {
+        const embedding = await geminiService.generateEmbedding(rawFilters.searchTerm);
+        return await exerciseService.searchExercises(rawFilters.searchTerm, embedding, user?.id);
+      } catch (err) {
+        console.error("Semantic search failed:", err);
+        return await exerciseService.searchExercises(rawFilters.searchTerm, null, user?.id);
+      }
+    },
   });
 
   // Reset visible count when filters change
@@ -132,6 +146,12 @@ export default function ExerciseLibraryTab() {
         <div className="space-y-4">
           <div className="flex items-center gap-4">
             <h2 className="text-3xl font-black italic tracking-tighter text-foreground uppercase">Esercizi</h2>
+            {rawFilters?.searchTerm && (
+              <div className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full animate-pulse flex items-center gap-2">
+                <BrainCircuit className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">AI Mode</span>
+              </div>
+            )}
             <div className="px-4 py-1.5 bg-primary/10 border border-primary/20 rounded-full shadow-lg shadow-primary/5">
               <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] flex items-center gap-2">
                 <Activity className="w-3.5 h-3.5" />
@@ -163,6 +183,7 @@ export default function ExerciseLibraryTab() {
         <AdvancedExerciseFilters 
           exercises={baseExercises} 
           onFilterChange={setFilteredExercises}
+          onRawFiltersChange={setRawFilters}
           userId={user?.id || undefined}
         />
       </div>

@@ -183,6 +183,14 @@ export const planService = {
     });
 
     return this.createPlan(newPlanData, newExercisesData);
+  },
+
+  async updatePlanStatus(planId: string, active: boolean) {
+    const { error } = await supabase
+      .from('workout_plans')
+      .update({ active })
+      .eq('id', planId);
+    if (error) throw error;
   }
 };
 
