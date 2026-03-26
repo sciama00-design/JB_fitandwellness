@@ -17,18 +17,28 @@ interface AppTabsProps {
   children: React.ReactNode;
   /** Allow horizontal scrolling on mobile */
   scrollable?: boolean;
+  /** Hide the tab trigger list on mobile (hidden md:flex) */
+  hideListOnMobile?: boolean;
 }
 
 /**
  * Accessible Tabs built on Radix with animated sliding indicator.
  * Supports horizontal scroll on mobile and keyboard navigation.
  */
-export function AppTabs({ tabs, value, onValueChange, children, scrollable = true }: AppTabsProps) {
+export function AppTabs({ 
+  tabs, 
+  value, 
+  onValueChange, 
+  children, 
+  scrollable = true,
+  hideListOnMobile = false
+}: AppTabsProps) {
   return (
     <RadixTabs.Root value={value} onValueChange={onValueChange}>
       <RadixTabs.List
         className={clsx(
-          'relative flex items-center gap-1 p-1.5 bg-white/[0.03] border border-white/5 rounded-2xl',
+          'relative items-center gap-1 p-1.5 bg-white/[0.03] border border-white/5 rounded-2xl',
+          hideListOnMobile ? 'hidden md:flex' : 'flex',
           scrollable && 'overflow-x-auto no-scrollbar snap-x snap-mandatory'
         )}
       >

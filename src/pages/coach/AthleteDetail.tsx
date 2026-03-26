@@ -252,6 +252,7 @@ export default function AthleteDetail() {
         tabs={ATHLETE_TABS.map(t => ({ id: t.id, label: t.label, icon: t.icon }))}
         value={activeTab}
         onValueChange={handleTabChange}
+        hideListOnMobile={true}
       >
         {/* Info Tab */}
         <AppTabContent value="anagrafica">
